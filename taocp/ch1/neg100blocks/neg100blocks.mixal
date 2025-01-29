@@ -1,0 +1,109 @@
+* 1.4.4-16: Implement the red-yellow-green-purple algorithm
+*
+* To demonstrate the algorithm, I will negate 100 blocks from tape 1
+* and output to tape 2. Interestingly, the program involves 3
+* coroutines.
+*
+* Registers:
+* NEXTP is ahead of NEXTG by rI6 buffers
+* NEXTR is ahead of NEXTP by rI5 buffers
+* NEXTG is ahead of NEXTR by rI4 buffers
+* rI2 is number of words processed in the buffer NEXTG
+* rI1 keeps track of number of blocks input so far
+U	EQU	0
+V	EQU	1
+BEGIN	IN	BUF1(U)		Read the first block.
+	JBUS	*(U)
+	ENT6	1
+	ENT5	3
+	ENT4	0
+	ENT1	99
+COMP1	JMP	ASSIGN
+	LDA	NEXTG
+	STA	1F(0:2)
+	STA	2F(0:2)
+	ENT2	99
+1H	LDAN	*,2		Negate the word.
+2H	STA	*,2
+	DEC2	1
+	JRED	COMPIN(U)
+	JRED	COMPOUT(V)
+	J2NN	1B		Done with block?
+	JMP	RELEASE
+	JMP	COMP1
+*
+ASSIGN	STJ	8F
+	J6NZ	8F		Has computation caught up to input?
+	JRED	COMPIN(U)	If yes, do input instead.
+	JMP	*-2
+8H	JMP	*		Otherwise, then we will continue computing.
+*
+RELEASE STJ	7F
+	DEC6	1		Update pointer distances.
+	INC4	1
+	LD3	NEXTG		Advance NEXTG.
+	LD3	100,3
+	ST3	NEXTG
+7H	JMP	*
+*
+1H	JMP	INCOMP
+IN1	J1Z	3F		Have all blocks been read?
+	J5NZ	2F		Has input caught up to output?
+3H	JRED	INOUT(V)	If yes to either, do output instead.
+	JMP	1B
+2H	LD3	NEXTP
+	ST3	4F(0:2)
+4H	IN	*(U)		Read a block.
+	JMP	INCOMP
+	DEC5	1		Update pointer distances.
+	INC6	1
+	LD3	NEXTP
+	LD3	100,3		Advance NEXTP.
+	ST3	NEXTP
+	DEC1	1		A block has been read.
+	JMP	1B
+*
+1H	JMP	OUTCOMP
+OUT1 	J1NZ	*+4		If all blocks have been read
+	J6NZ	*+3		  and computed,
+	J4NZ	*+2		  and outputted,
+DONE	HLT	0		  we are done.
+	J4NZ	2F		Has output caught up to computation?
+	JMP	1B		If yes, do computation instead.
+2H	LD3	NEXTR
+	ST3	4F(0:2)
+4H	OUT	*(V)		Output a block.
+	JMP	OUTCOMP
+	DEC4	1		Update pointer distances.
+	INC5	1
+	LD3	NEXTR
+	LD3	100,3		Advance NEXTR.
+	ST3	NEXTR
+	JMP	1B
+* Coroutine linkage
+INCOMP	STJ	INX
+COMPX	JMP	COMP1
+OUTCOMP	STJ	OUTX
+	JMP	COMPX
+COMPIN	STJ	COMPX
+INX	JMP	IN1
+OUTIN	STJ	OUTX
+	JMP	INX
+COMPOUT	STJ	COMPX
+OUTX	JMP	OUT1
+INOUT	STJ	INX
+	JMP	OUTX
+* Constants
+ONE	CON	1
+BUF1	ORIG	*+100
+	CON	*+1
+BUF2	ORIG	*+100
+	CON	*+1
+BUF3	ORIG	*+100
+	CON	*+1
+BUF4	ORIG	*+100
+	CON	BUF1
+NEXTP	CON	BUF2
+NEXTG	CON	BUF1
+NEXTR	CON	BUF1
+	END	BEGIN

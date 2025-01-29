@@ -1,0 +1,60 @@
+* 1.3.2-10: find saddle point in a 9x8 matrix
+* The program essentially does at most two passes through the matrix
+* (first to find the max of each column, then to find the min of some
+*  row that is also a column max).
+ROWS	EQU	3
+COLS	EQU	2
+* COLMAX -- find the maximum in a column of 8 elements
+*    Input: rI6 = address of first element in column
+*   Output: rA <- min
+* Modifies: rI5, rA
+COLMAX	STJ	7F
+	ST6	1F(0:2)
+	ST6	2F(0:2)
+	ENT5	ROWS-1*COLS	rI5 counts down through the row elements.
+	JMP	1F
+2H	CMPA	*,5
+	JGE	*+2
+1H	LDA	*,5		Current max < current element; update current max.
+	DEC5	COLS
+	J5P	2B
+7H	JMP	*
+*
+M	EQU	1009
+COLMAXS	EQU	200
+* Start of program. We first populate the column maxs.
+MAIN	ENT1	0
+	ENT4	COLS-1
+1H	ENT6	M,4
+	JMP	COLMAX
+	STA	COLMAXS,4
+	DEC4	1
+	J4NN	1B
+* Find saddle point
+FINDSDL	ENT6	ROWS*COLS-1	rI6 = offset into M
+	ENT5	ROWS-1		rI5 = cur row
+	ENT4	COLS-1		rI4 = cur column
+	JMP	NEWMIN
+2H	CMPA	M,6
+	JLE	3F
+NEWMIN	LDA	M,6		Update rA = cur row min
+	CMPA	COLMAXS,4	If row min is also column max,
+	JNE	*+3
+	ENT1	M,6		  update rI1.
+	JMP	3F
+	ENT1	0		Else, rI1 <- 0.
+3H	DEC6	1
+	DEC4	1
+	J4NN	2B		Move on to the next element in row?
+	DEC5	1
+	J1NZ	DONE		If a saddle point was found in row, halt.
+	J5NN	NEWMIN		Move on to the next row?
+DONE	HLT
+	ORIG	M
+	CON	1
+	CON	2
+	CON	3
+	CON	6
+	CON	7
+	CON	8
+	END	MAIN

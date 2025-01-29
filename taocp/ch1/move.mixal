@@ -1,0 +1,39 @@
+* 1.4.2-6: implement MOVE from scratch
+* Warning: self-modifying code
+	ORIG	1000
+MOVE	STJ	EXIT
+	ST6	OLDI6		save old value of rI6
+	LD6	EXIT(0:2)	rI6<-rJ
+	LDA	0,6(4:4)	rA<-F
+	LDX	0,6(3:3)	rX<-I
+	LD6	OLDI6		restore rI6, so that it can be used in the calculation of M if I=6
+	JXZ	1F		I=0?
+	INCX	24		set rX to appropriate STx opcode
+	STX	*+1(5:5)	set opcode of next instruction
+	NOP	*+1(0:2)	set A field of next instruction
+	ENTA	*		rA <- Ith index register
+	JMP	*+2
+1H	ENTA	0
+	LD6	EXIT(0:2)	rI6<-rJ
+	ADD	0,6(0:2)	rA+=A, thus rA<-M now
+	LD6	0,6(4:4)	rI6<-F, to use as a counter
+GO	STA	*+1(0:2)	set A field
+	LDX	*		rX<-CONTENTS(M)
+	STX	0,1		CONTENTS(rI1)<-rX
+	INCA	1		increment source addr
+	INC1	1		increment dest addr
+	DEC6	1		decrement counter
+	J6P	GO		continue looping?
+EXIT	JMP	*
+*
+START	ENT1	100		main program for testing
+	ENT3	99
+	JMP	MOVE
+	NOP	-99,3(4)
+	HLT
+  	ORIG	0
+	CON	9
+	CON	8
+	CON	7
+	CON	6
+	END	START

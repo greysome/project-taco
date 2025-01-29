@@ -1,0 +1,70 @@
+* Knuth's trace routine from 1.4.3.2, modified according to the exercises
+*
+* TRACE ROUTINE
+  	ORIG	3900
+BEGIN	ENTX	LEAVEX
+	JMP	*+1
+ENTER	STX	TEST(0:2)
+	STX	LEAVEX(0:2)
+	STA	AREG
+	STJ	JORIG
+	STJ	JREG
+	LDA	JREG(0:2)
+CYCLE	STA	PREG(0:2)
+TEST	DECA	*
+	JAZ	LEAVE
+PREG	LDA	*
+	STA	INST
+	SRA	2
+	STA	INST1(0:3)
+	LDA	INST(5:5)
+	DECA	38
+	JANN	1F
+	INCA	6
+	JANZ	2F
+	LDA	INST(0:4)
+	STA	*+2(0:4)
+JREG	ENTA	*
+	STA	*
+	JMP	INCP
+2H	DECA	2
+	JANZ	2F
+	JMP	3F
+1H	DECA	9
+	JAP	2F
+3H	LDA	8F(0:3)
+	STA	INST(0:3)
+2H	LDA	AREG
+INST	NOP	*
+	STA	AREG
+INCP	LDA	PREG(0:2)
+	INCA	1
+	JMP	CYCLE
+8H	JSJ	JUMP
+JUMP	LDA	8B(4:5)
+	SUB	INST(4:5)
+	JAZ	*+4
+	LDA	PREG(0:2)
+	INCA	1
+	STA	JREG(0:2)
+INST1	ENTA	*
+	JMP	CYCLE
+* 1.4.3.2-1: restore rJ on exit
+LEAVE	LDA	JORIG(0:2)
+	DECA	1		Compute (original rJ) - 1
+	STA	6F(0:2)
+	STA	7F(0:2)
+	STA	8F(0:2)
+	STA	9F(0:2)
+6H	LDA	*		Load the instruction at that address
+	STA	OLDINSTR	Store it, for later restoration
+	LDA	NEWINSTR
+7H	STA	*		Replace instruction with "JMP AFTER" (to set the desired rJ)
+8H	JMP	*
+AFTER	LDA	OLDINSTR
+9H	STA	*		Restore the original instruction
+	LDA	AREG
+LEAVEX	JSJ	*		rJ has already been updated; don't touch it
+NEWINSTR	JMP	AFTER
+AREG	CON	0
+	END	BEGIN

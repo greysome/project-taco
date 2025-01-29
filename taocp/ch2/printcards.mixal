@@ -1,0 +1,40 @@
+* 2.1-1: print cards from top to bottom
+TAG	EQU	1:1
+NEXT	EQU	4:5
+BEGIN	LD1	TOP
+2H	J1Z	DONE
+	LDA	1,1		Store alphanumeric representation of card
+	STA	LINE1
+	LD2	0,1(TAG)
+	J2Z	1F
+	LDA	LPAREN
+	STA	LINE0
+	LDA	RPAREN
+	STA	LINE2
+	JMP	*+3
+1H	STZ	LINE0
+	STZ	LINE2
+	OUT	LINE0(18)
+	JBUS	*(18)
+	LD1	0,1(NEXT)
+	JMP	2B
+DONE	HLT
+* The line to print
+LPAREN	ALF      (
+RPAREN	ALF  )    
+LINE0	CON	0
+LINE1	CON	0
+LINE2	CON	0
+	ORIG	*+21
+* Cards
+TOP	CON	242
+	ORIG	242
+	CON	2(2:2),2(3:3),386(4:5)
+	ALF    2 D
+	ORIG	386
+	CON	0(2:2),4(3:3),100(4:5)
+	ALF    3 S
+	ORIG   100
+	CON	1(1:1),1(2:2),10(3:3),0(4:5)
+	ALF   10 C
+	END	BEGIN

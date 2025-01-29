@@ -1,0 +1,88 @@
+NCARDS	EQU	190
+DATA	EQU	100
+* GETLVL routine:
+* rA <- next number
+* rX <- 1 or -1, if a ',' or '.' respectively is encountered;
+*   otherwise rX <- 0.
+* Uses rI1 to store the current word
+GETLVL	STJ	7F
+	ENTX	0
+	LDA	CURWORD
+	JANZ	1F		Replenish current word if needed
+	LDA	DATA,1
+	INC1	1
+	STA	CURWORD
+1H	SLC	1		rX <- first char
+	JANZ	2F		Replenish current word if needed
+	LDA	DATA,1
+	INC1	1
+2H	STA	CURWORD		Update current word (with 1 char read)
+	CMPX	=40=
+	JLE	*+3		If first char = ',',
+	ENTX	1		  then rX <- 1
+	JMP	7F
+	JL	*+3		If first char = '.',
+	ENTX	-1		  then rX <- -1
+	JMP	7F
+	SLC	1		Otherwise, load in next char to rX
+	STA	CURWORD		  and update current word (with 2 chars read)
+	ENTA	0
+	NUM	0		Convert to number
+	ENTX	0
+7H	JMP	*
+* Load all cards
+BEGIN	ENT1	NCARDS
+	ENT2	DATA
+1H	IN	0,2(16)
+	INC2	16
+	DEC1	1
+	J1P	1B
+	ENT2	0
+	ENT4	0
+* Part 1: count number of safe reports
+*
+* As sweep through the consecutive pairs (a,b) in a line, we add +1 to
+* the value if 1 <= b-a <= 3, and -1 if -3 <= b-a <= -1. Then at the
+* end we check if the value is +-k, where k is the number of levels.
+*
+* Registers:
+* rI2 = current value of line
+* rI3 = number of levels in current line - 1
+* rI4 = previous level
+* rA  = current level
+* rI6 = total
+5H	ENT2	0
+	ENT3	0
+	JMP	GETLVL
+	STA	TMP		Store first level in rI4
+	LD4	TMP
+2H	JMP	GETLVL
+4H	JXZ	3F		If ',' or '.' encountered,
+	ST2	TMP
+	LD2	TMP(4:5)	  value <- abs(value)
+	DEC2	0,3
+	J2NZ	*+2		  If value = number of levels in line,
+	INC6	1		    increment total
+	JXN	DONE		  If it was a '.', we are done
+	JMP	5B		  Move on to next line
+3H 	STA	TMP		Otherwise, we process the current level
+	DECA	0,4
+	JANP	6F		If current > prev,
+	DECA	3		  and current - prev <= 3,
+	JAP	1F
+	INC2	1		  increment value
+	JMP	1F
+6H	JAZ	7F		If current < prev,
+	INCA	3		  and prev - current <= 3,
+	JAN	1F
+	DEC2	1		  decrement value
+	JMP	1F
+7H	JMP	GETLVL		If current = prev, the line is not safe
+	JXZ	*-2		  skip to the next line
+	ENT2	0
+	JMP	4B
+1H	LD4	TMP		Update previous number
+	INC3	1		Increment number of levels
+	JMP	2B
+DONE	HLT
+	END	BEGIN

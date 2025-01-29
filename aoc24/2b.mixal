@@ -1,0 +1,127 @@
+NCARDS	EQU	190
+DATA	EQU	119
+LINE	EQU	110
+* GETLVL routine:
+* rA <- next number
+* rX <- 1 or -1, if a ',' or '.' respectively is encountered;
+*   otherwise rX <- 0.
+* Uses rI1 to store the index of the current word.
+GETLVL	STJ	7F
+	ENTX	0
+	LDA	CURWORD
+	JANZ	1F		Replenish current word if needed
+	LDA	DATA,1
+	INC1	1
+	STA	CURWORD
+1H	SLC	1		rX <- first char
+	JANZ	2F		Replenish current word if needed
+	LDA	DATA,1
+	INC1	1
+2H	STA	CURWORD		Update current word (with 1 char read)
+	CMPX	=40=
+	JLE	*+3		If first char = ',',
+	ENTX	1		  then rX <- 1
+	JMP	7F
+	JL	*+3		If first char = '.',
+	ENTX	-1		  then rX <- -1
+	JMP	7F
+	SLC	1		Otherwise, load in next char to rX
+	STA	CURWORD		  and update current word (with 2 chars read)
+	ENTA	0
+	NUM	0		Convert to number
+	ENTX	0
+7H	JMP	*
+* STLINE routine:
+* LINE[0]    <- number of levels in line, k
+* LINE[1..k] <- levels
+* rX         <- -1 if last line, else 1
+* Uses rI2 to store number of levels read so far
+STLINE	STJ	7F
+	ST1	I1REG
+	LD1	WORDIDX
+	ENT2	0
+1H	JMP	GETLVL
+	JXNZ	2F
+	STA	LINE+1,2	Store the ith level
+	INC2	1
+	JMP	1B
+2H	ST2	LINE		Store the number of levels
+	ST1	WORDIDX
+	LD1	I1REG
+7H	JMP	*
+* IGNI (ignore ith level) routine:
+* Input:  i   <- rI1 (1-indexed); rI1=0 means we don't ignore any
+* Output: rI2 <- value of line, ignoring the ith level
+*   (if some difference is either too small or too large, rI2 <- 0)
+*
+* Also uses the following registers:
+* rI3 = current level number
+* rI4 = previous level
+* rI5 = current level
+IGNI	STJ	7F
+	ENT2	0
+	ST1	TMP
+	LD3	LINE		Get number of levels
+	CMP3	TMP
+	JE	*+3
+	LD4	LINE,3		Load first level
+	JMP	2F
+	DEC3	1		We are ignoring the first level
+	LD4	LINE,3		Load second level
+2H 	DEC3	1		Update level
+	J3Z	7F		Are we done with all levels?
+	CMP3	TMP		We are not done, do we ignore this level?
+	JE	2B
+	LD5	LINE,3		Load this level
+	DEC5	0,4		Get the difference
+	J5P	3F
+	J5N	4F
+	JMP	6F		If current = prev, the line is not safe
+3H	DEC5	3		If 1 <= current - prev <= 3,
+	J5P	6F
+	INC2	1		  increment value
+	INC5	3		Restore rI5
+	JMP	1F
+4H 	INC5	3		If 1 <= prev - current <= 3,
+	J5N	6F
+	DEC2	1		  decrement value
+	DEC5	3		Restore rI5
+1H	INC5	0,4		Restore rI5
+	ENT4	0,5		Set previous level
+	JMP	2B
+6H	ENT2	999		Set value = 999, i.e. line is not safe
+7H	JMP	*		We are done with all levels
+* Load all cards
+BEGIN	ENT1	NCARDS
+	ENT2	DATA
+1H	IN	0,2(16)
+	INC2	16
+	DEC1	1
+	J1P	1B
+	ENT2	0
+	ENT4	0
+* Part 2: count number of safe reports with Problem Dampener
+*
+* Registers:
+* rI1 = current level to ignore
+* rI6 = number of safe lines
+*
+* Note that if a report is safe without ignoring any level, it is also
+* safe when ignoring the 1st level.
+	ENT6	0
+2H	JXN	DONE
+	JMP	STLINE
+	LD1	LINE
+3H	JMP	IGNI		rI2 <- value of line
+	ST2	TMP2(4:5)
+	LD2	TMP2		Get absolute value of rI2
+	INC2	2
+	CMP2	LINE		Is the line safe?
+	JNE	4F
+	INC6	1
+	JMP	2B		Yes, move on to next line
+4H	DEC1	1		Ignore next level
+	J1N	2B		Move on to next line
+	JMP	3B
+DONE	HLT
+	END	BEGIN

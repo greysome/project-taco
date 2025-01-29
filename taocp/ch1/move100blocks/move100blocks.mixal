@@ -1,0 +1,35 @@
+* 1.4.4-15: Copy 100 blocks from tape unit 0 to 1, using 3 buffers
+* rI1 = blocks output so far
+* rI4 = input buffer address
+* rI5 = output buffer address
+* rI6 = number of blocks input is ahead of output
+BEGIN	ENT1	-100
+	ENT4	BUF1
+	ENT5	BUF1
+	ENT6	-1
+	JMP	INPUT
+INPUT	JBUS	OUTPUT(0)
+	J1Z	1F		If last block, we are (almost) done.
+	CMP6	=3=		If input is too far ahead,
+	JE	OUTPUT		  postpone and handle output first.
+	INC6	1
+	IN	0,4(0)
+	LD4	100,4		Load next buffer.
+	JMP	INPUT
+OUTPUT	JBUS	INPUT(1)
+	J6Z	INPUT		If output has caught up to input,
+	INC1	1		  postpone and handle input.
+	J1N	*+3
+1H	JBUS	*(1)		Wait for last block to be output.
+	HLT
+	DEC6	1
+	OUT	0,5(1)
+	LD5	100,5		Load next buffer.
+	JMP	OUTPUT
+BUF1	ORIG	*+100
+	CON	*+1
+BUF2	ORIG	*+100
+	CON	*+1
+BUF3	ORIG	*+100
+	CON	BUF1
+	END	BEGIN
