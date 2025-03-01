@@ -1,4 +1,4 @@
-START	IN	100(16)		Use card file "perm1.cards"
+START	IN	100(16)		Use card file "../../taocp/ch1/perms/perm1.cards"
 	JBUS	*(16)
 	OUT	100(18)
 	JBUS	*(18)		Print input

@@ -20,7 +20,8 @@ OUTPUT	JBUS	INPUT(1)
 	J6Z	INPUT		If output has caught up to input,
 	INC1	1		  postpone and handle input.
 	J1N	*+3
-1H	JBUS	*(1)		Wait for last block to be output.
+1H	NOP
+*1H	JBUS	*(1)		Wait for last block to be output.
 	HLT
 	DEC6	1
 	OUT	0,5(1)
