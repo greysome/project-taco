@@ -1,0 +1,191 @@
+* 2.2.4: subroutines for manipulations of polynomials
+LINK	EQU	4:5
+ABC	EQU	0:3
+OVERFLOW	HLT
+* ADD
+* Input:  rI1=P, rI2=Q
+* Output: poly(Q)<-poly(Q)+poly(P); rI1,rI2 unchanged;
+*         all other registers undefined
+ADD	STJ	3F
+1H	ENT3	0,2
+	LD2	1,3(LINK)
+0H	LD1	1,1(LINK)
+SW1	LDA	1,1
+2H	CMPA	1,2(ABC)
+	JE	3F
+	JG	5F
+	ENT3	0,2
+	LD2	1,3(LINK)
+	JMP	2B
+3H	JAN	*
+SW2	LDA	0,1
+	ADD	0,2
+	STA	0,2
+	JANZ	1B
+	ENT6	0,2
+	LD2	1,2(LINK)
+	LDX	AVAIL
+	STX	1,6(LINK)
+	ST6	AVAIL
+	ST2	1,3(LINK)
+	JMP	0B
+5H	LD6	AVAIL
+	J6Z	OVERFLOW
+	LDX	1,6(LINK)
+	STX	AVAIL
+	STA	1,6
+SW3	LDA	0,1
+	STA	0,6
+	ST2	1,6(LINK)
+	ST6	1,3(LINK)
+	ENT3	0,6
+	JMP	0B
+* COPY
+* Input:  rI1=P
+* Output: rI2 points to a newly created polynomial equal to poly(P),
+*         rI1 unchanged; other registers undefined
+*
+* 1. Set P1<-P, Q0<=AVAIL, COEF(Q0)<-COEF(P1), ABC(Q0)<-ABC(P1), Q<-Q0.
+* 2. P1<-LINK(P1). If P1=sentinel, set LINK(Q)<-Q0 and terminate.
+* 3. Set Q1<-Q, Q<=AVAIL, COEF(Q)<-COEF(P1), ABC(Q)<-ABC(P),
+*    LINK(Q1)<-Q, and goto 2.
+* Registers:
+* rI2=Q0, rI3=Q, rI4=Q1, rI5=P1, rI6=tmp
+COPY	STJ	9F
+	ENT5	0,1		P1 <- P.
+	LD2	AVAIL		Q0 <= AVAIL.
+	J2Z	OVERFLOW
+	LD6	1,2(LINK)
+	ST6	AVAIL
+	LDA	0,5		COEF(Q0) <- COEF(P1).
+	STA	0,2
+	LDA	1,5(ABC)	ABC(Q0) <- ABC(PQ).
+	STA	1,2(ABC)
+	ENT3	0,2		Q <- Q0.
+2H	LD5	1,5(LINK)	P1 <- LINK(P1).
+	LDA	1,5(ABC)
+	JANN	3F		P1 = sentinel?
+	ST2	1,3(LINK)	LINK(Q) <- Q0.
+9H	JMP	*
+3H	ENT4	0,3		Q1 <- Q.
+	LD3	AVAIL		Q <= AVAIL.
+	J3Z	OVERFLOW
+	LD6	1,3(LINK)
+	ST6	AVAIL
+	LDA	0,5		COEF(Q) <- COEF(P1).
+	STA	0,3
+	LDA	1,5(ABC)	ABC(Q) <- ABC(P1).
+	STA	1,3(ABC)
+	ST3	1,4(LINK)	LINK(Q1) <- Q.
+	JMP	2B
+* ERASE
+* Input:  rI1=P
+* Output: poly(P) is added to the AVAIL list; all registers undefined
+ERASE	STJ	9F
+	LD2	AVAIL
+	LD3	1,1(LINK)
+	ST2	1,1(LINK)
+	ST3	AVAIL
+9H	JMP	*
+* ZERO
+* Input:  None
+* Output: rI2 points to a newly created polynomial equal to 0;
+*         all other registers undefined
+ZERO	STJ	9F
+	LD2	AVAIL
+	J2Z	OVERFLOW
+	LD1	1,2(LINK)
+	ST1	AVAIL
+	STZ	0,2
+	ENTA	-1
+	STA	1,2(ABC)
+	ST2	1,2(LINK)
+9H	JMP	*
+* MULT
+* Input:  rI1=P, rI2=Q, rI4=M
+* Output: poly(Q)<-poly(Q)+poly(M)*poly(P); rI1,rI2,rI4 unchanged;
+* 	  other registers undefined
+*
+* 1. Set M<-LINK(M). If ABC(M)<0, then terminate.
+* 2. Perform Algorithm A, except with some instructions modified.
+*    Then goto 1.
+MULT	STJ	9F
+1H	LD4	1,4(LINK)
+	LDA	1,4(ABC)
+9H	JAN	*
+	LDA	CODE1X		Insert new instructions
+	STA	SW1
+	LDA	CODE2X
+	STA	SW2
+	STA	SW3
+	JMP	ADD		Do addition
+	LDA	OLD1		Restore old instructions
+	STA	SW1
+	LDA	OLD2
+	STA	SW2
+	STA	SW3
+	JMP	1B		Goto step 1
+CODE1 	LDA	1,1(ABC)
+	JAN	*+2
+	ADD	1,4(ABC)	rA <- ABC(P) + ABC(M)
+	SLA	2
+	JMP	SW1+1
+CODE2	STJ	9F
+	LDA	0,1
+	MUL	0,4		rAX <- COEF(P) * COEF(M)
+	SLAX	5
+9H	JMP	*
+CODE1X	JMP	CODE1
+CODE2X	JMP	CODE2
+OLD1	LDA	1,1
+OLD2	LDA	0,1
+* TEST DATA
+	ORIG	1000
+TEST 	ENT1	P
+	ENT2	Q
+	ENT4	M
+	JMP	MULT
+	HLT
+	CON	1
+	CON	2(0:1),0(2:2),0(3:3),*+1(LINK)
+	CON	2
+	CON	1(0:1),1(2:2),0(3:3),*+1(LINK)
+	CON	1
+	CON	0(0:1),2(2:2),0(3:3),*+1(LINK)
+P	CON	0				P = x^2 + 2xy + y^2
+	CON	-1(0:3),*-7(LINK)
+	CON	-1
+	CON	3(0:1),0(2:2),0(3:3),*+1(LINK)
+	CON	-1
+	CON	0(0:1),3(2:2),0(3:3),*+1(LINK)
+Q	CON	0				Q = -x^3 - y^3
+	CON	-1(0:3),*-5(LINK)
+ 	CON	1
+	CON	1(0:1),0(2:2),0(3:3),*+1(LINK)
+ 	CON	1
+	CON	0(0:1),1(2:2),0(3:3),*+1(LINK)
+M	CON	0				M = x + y
+	CON	-1(0:3),*-5(LINK)
+* MEMORY POOL
+0H  	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+	CON	0
+	CON	*+1(LINK)
+AVAIL	CON	0B
+	END	TEST
