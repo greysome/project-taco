@@ -1,0 +1,164 @@
+* My attempt at implementing the COPY subroutine from
+* differentiate_original.mixal
+LLINK	EQU	4:5
+RLINK	EQU	1:2
+RLINKT	EQU	0:2
+TYPE	EQU	3:3
+LINE	ORIG	*+24
+* PRINT subroutine: print out the postorder sequence of tree
+* Input: rI1=HEAD
+* Registers used: rI1 = cur node, rI2 = line pointer
+PRINT	STJ	9F
+	ST1	0F
+	ENT2	-24
+3H	LDA	0,1(RLINKT)	RTAG(rI1)
+	JAP	1F		  = 1?
+	LD1	0,1(RLINK)	rI1 <- RLINK(rI1).
+	JMP	2F
+1H	LD1	0,1(RLINK)	rI1 <- RLINK(rI1).
+	LDA	0,1(LLINK)	LLINK(rI1)
+	JAZ	2F		  != NULL?
+	LD1	0,1(LLINK)	rI1 <- LLINK(rI1).
+	JMP	*-3		Repeat.
+2H	LDA	1,1		Print INFO(rI1).
+	LDX	0,1(TYPE)	TYPE(rI1) = 0?
+	JXNZ	*+3		Convert to characters
+	CHAR
+	SLAX	5
+	STA	LINE+24,2
+	INC2	1
+	J2N	*+4		Time to print line?
+	OUT	LINE(18)
+	JBUS	*(18)
+	ENT2	-24
+	CMP1	0F		Have we traversed the whole tree?
+	JNE	1F
+	STZ	LINE+24,2	Blank out rest of the line
+	ENT1	LINE+25,2
+	INC2	1
+	ST2	*+2(4:4)
+	DEC2	1
+	MOVE	LINE+24,2(*)
+	OUT	LINE(18)	Print the remaining stuff
+	JBUS	*(18)
+9H	JMP	*
+1H	JMP	3B
+0H	CON	0
+* TEST CASE
+* y = 3 ln(x+1) - a/x^2
+Y	CON	*+2(LLINK),Y(RLINKT),1(TYPE)		y -> (-, y)
+	ALF     Y 
+	CON	*+2(LLINK),-Y(RLINKT),5(TYPE)		- -> (*, Y)
+	ALF     - 
+	CON	*+2(LLINK),*+12(RLINKT),6(TYPE)		* -> (3, /)
+	ALF     * 
+	CON	0(LLINK),*+2(RLINKT),0(TYPE)		3 -> (NULL, ln)
+	CON	3
+	CON	*+2(LLINK),-*+4(RLINKT),2(TYPE)		ln -> (+, *)
+	ALF    LN 
+	CON	*+2(LLINK),-*+2(RLINKT),4(TYPE)		+ -> (x, ln)
+	ALF     + 
+	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 1)
+	ALF     X 
+	CON	0(LLINK),-*+4(RLINKT),0(TYPE)		1 -> (NULL, +)
+	CON	1
+	CON	*+2(LLINK),-*+14(RLINKT),7(TYPE)	/ -> (a, -)
+	ALF     / 
+	CON	0(LLINK),*+2(RLINKT),1(TYPE)		a -> (NULL, ^)
+	ALF     A 
+	CON	*+2(LLINK),-*+4(RLINKT),8(TYPE)		^ -> (x, /)
+	ALF    ** 
+	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 2)
+	ALF     X 
+	CON	0(LLINK),-*+4(RLINKT),0(TYPE)		2 -> (NULL, ^)
+	CON	2
+* PROGRAM STARTS HERE
+TEST	ENT1	POOL		Setup memory pool
+	INC1	2
+	ENT2	100
+	ST1	-2,1(LLINK)
+	MOVE	POOL(2)
+	DEC2	1
+	J2P	*-3
+	STZ	-2,1
+	ENT1	Y		Print original expression
+	JMP	PRINT
+	ENT1	Y
+	JMP	COPY
+	JMP	PRINT		Print copied expression
+	HLT
+* COPY
+* Input:  rI1 = head of old bintree
+* Output: rI1 = head of new bintree
+* Registers used: rI1=Q, rI2=P, rI3=R
+COPY	STJ	9F
+	ST1	HEAD		Save registers.
+	ST2	7F(0:2)
+	ENT2	0,1		P <- HEAD.
+	ST3	8F(0:2)
+	LD1	AVAIL		Q <= AVAIL.
+	J1Z	OVERFLOW
+	LDA	0,1(LLINK)
+	STA	AVAIL
+	STZ	0,1
+	ST1	0,1(RLINKT)	RLINK(Q) <- Q, RTAG(Q) <- 0.
+	JMP	C3
+C2	LDA	0,2(RLINKT)
+	JAN	1F		P has right child?
+	LD3	AVAIL		R <= AVAIL.
+	J3Z	OVERFLOW
+	LDA	0,3(LLINK)
+	STA	AVAIL
+	STZ	0,3
+	LDA	0,1(RLINKT)	RLINKT(Q)
+	STA	0,3(RLINKT)	  -> RLINKT(R).
+	ST3	0,1(RLINKT)	RLINK(Q) <- R, RTAG(Q) <- 0.
+	JMP	C3
+1H	LDAN	0,1		P does not have right child.
+	JANN	C3		Jump if RTAG(Q)=1 already.
+	STA	0,1		RTAG(Q) <- 1.
+C3	LDA	1,2		INFO(P)
+	STA	1,1		  -> INFO(Q).
+	LDA	0,2(TYPE)	TYPE(P)
+	STA	0,1(TYPE)	  -> TYPE(Q).
+C4	LDA	0,2(LLINK)
+	JAZ	1F		P has left child?
+	LD3	AVAIL		R <= AVAIL.
+	J3Z	OVERFLOW
+	LDA	0,3(LLINK)
+	STA	AVAIL
+	STZ	0,3
+	ST3	0,1(LLINK)	LLINK(Q) <- R.
+	ENN1	0,1
+	ST1	0,3(RLINKT)	RLINK(R) <- Q, RTAG(R) <- 1.
+	ENN1	0,1
+C5	LD1	0,1(LLINK)	Q <- LLINK(Q).
+	LD2	0,2(LLINK)	P <- LLINK(P).
+	JMP	C6
+1H	LDA	0,2
+	JANN	1F		RTAG(P) = 0?
+	LD1	0,1(RLINK)	Q <- RLINK(Q).
+	LD2	0,2(RLINK)	P <- RLINK(P).
+	JMP	1B
+1H	LD1	0,1(RLINK)	Q <- RLINK(Q).
+	LD2	0,2(RLINK)	P <- RLINK(P).
+C6	CMP2	HEAD		P = HEAD?
+	JNE	C2
+7H	ENT2	*
+8H	ENT3	*
+9H	JMP	*
+HEAD	CON	0
+OVERFLOW	OUT	*+3(18)
+	JBUS	*(18)
+	HLT	999
+	ALF  OVERF
+	ALF  LOW D
+	ALF  ETECE
+	ALF  D; AB
+	ALF  ORT  
+	ORIG	*+19
+AVAIL	CON	*+1
+* MEMORY POOL
+POOL	CON	0
+	CON	0
+	END	TEST

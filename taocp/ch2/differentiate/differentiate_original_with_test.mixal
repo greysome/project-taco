@@ -1,9 +1,99 @@
 * Program D from 2.3.2, Knuth's version
+*
+* NOTE: to make printing look slightly nicer, I changed to the INFO
+* fields to have a space of padding at the end. Thus with _
+* representing space, ___** becomes __**_.
+*
 * DIFFERENTIATION IN A RIGHT-THREADED TREE
 LLINK	EQU	4:5
 RLINK	EQU	1:2
 RLINKT	EQU	0:2
 TYPE	EQU	3:3
+LINE	ORIG	*+24
+* PRINT subroutine: print out the postorder sequence of tree
+* Input: rI1=HEAD
+* Registers used: rI1 = cur node, rI2 = line pointer
+PRINT	STJ	9F
+	ST1	HEAD
+	ENT2	-24
+3H	LDA	0,1(RLINKT)	RTAG(rI1)
+	JAP	1F		  = 1?
+	LD1	0,1(RLINK)	rI1 <- RLINK(rI1).
+	JMP	2F
+1H	LD1	0,1(RLINK)	rI1 <- RLINK(rI1).
+	LDA	0,1(LLINK)	LLINK(rI1)
+	JAZ	2F		  != NULL?
+	LD1	0,1(LLINK)	rI1 <- LLINK(rI1).
+	JMP	*-3		Repeat.
+2H	LDA	1,1		Print INFO(rI1).
+	LDX	0,1(TYPE)	TYPE(rI1) = 0?
+	JXNZ	*+3		Convert to characters
+	CHAR
+	SLAX	5
+	STA	LINE+24,2
+	INC2	1
+	J2N	*+4		Time to print line?
+	OUT	LINE(18)
+	JBUS	*(18)
+	ENT2	-24
+	CMP1	HEAD		Have we traversed the whole tree?
+	JNE	1F
+	STZ	LINE+24,2	Blank out rest of the line
+	ENT1	LINE+25,2
+	INC2	1
+	ST2	*+2(4:4)
+	DEC2	1
+	MOVE	LINE+24,2(*)
+	OUT	LINE(18)	Print the remaining stuff
+	JBUS	*(18)
+9H	JMP	*
+1H	JMP	3B
+HEAD	CON	0
+* TEST CASE
+* y = 3 ln(x+1) - a/x^2
+Y	CON	*+2(LLINK),Y(RLINKT),1(TYPE)		y -> (-, y)
+	ALF     Y 
+	CON	*+2(LLINK),-Y(RLINKT),5(TYPE)		- -> (*, Y)
+	ALF     - 
+	CON	*+2(LLINK),*+12(RLINKT),6(TYPE)		* -> (3, /)
+	ALF     * 
+	CON	0(LLINK),*+2(RLINKT),0(TYPE)		3 -> (NULL, ln)
+	CON	3
+	CON	*+2(LLINK),-*+4(RLINKT),2(TYPE)		ln -> (+, *)
+	ALF    LN 
+	CON	*+2(LLINK),-*+2(RLINKT),4(TYPE)		+ -> (x, ln)
+	ALF     + 
+	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 1)
+	ALF     X 
+	CON	0(LLINK),-*+4(RLINKT),0(TYPE)		1 -> (NULL, +)
+	CON	1
+	CON	*+2(LLINK),-*+14(RLINKT),7(TYPE)	/ -> (a, -)
+	ALF     / 
+	CON	0(LLINK),*+2(RLINKT),1(TYPE)		a -> (NULL, ^)
+	ALF     A 
+	CON	*+2(LLINK),-*+4(RLINKT),8(TYPE)		^ -> (x, /)
+	ALF    ** 
+	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 2)
+	ALF     X 
+	CON	0(LLINK),-*+4(RLINKT),0(TYPE)		2 -> (NULL, ^)
+	CON	2
+DY	CON	*(RLINKT),1(TYPE)
+	ALF    DY 
+* PROGRAM STARTS HERE
+TEST	ENT1	POOL		Setup memory pool
+	INC1	2
+	ENT2	200
+	ST1	-2,1(LLINK)
+	MOVE	POOL(2)
+	DEC2	1
+	J2P	*-3
+	STZ	-2,1
+	ENT1	Y		Print original expression
+	JMP	PRINT
+	JMP	D1		Run differentiation routine
+	ENT1	DY		Print differentiated expression
+	JMP	PRINT
+	HLT
 * MAIN CONTROL ROUTINE
 D1	STJ	9F
 	LD4	Y(LLINK)
@@ -43,7 +133,7 @@ TREE1	ST1	3F(0:2)
 	JSJ	1F
 TREE2	STX	3F(0:2)
 3H	ST1	*(RLINKT)
-	STJ	9F
+1H	STJ	9F
 	LDXN	AVAIL
 	JXZ	OVERFLOW
 	STX	0,1(RLINKT)
@@ -61,7 +151,6 @@ TREE2	STX	3F(0:2)
 COPYP1	ENT1	0,4
 	JSJ	COPY
 COPYP2	ENT1	0,3
-	STJ	9F
 COPY	STJ	9F
 	ST3	6F(0:2)
 	ST2	7F(0:2)
@@ -123,7 +212,7 @@ TIMES	CON	6(TYPE)
 SLASH	CON	7(TYPE)
 	ALF     / 
 UPARROW	CON	8(TYPE)
-	ALF     **
+	ALF    ** 
 * DIFFERENTIATION ROUTINES
 VARIABLE	LDX	1,2
 	ENTA	CON1
@@ -133,7 +222,7 @@ CONSTANT	ENTA	CON0
 	JMP	TREE0
 1H	ENT5	0,1
 	JMP	D4
-2H	ALF      X
+2H	ALF     X 
 LN	LDA	1,5
 	JAZ	D4
 	JMP	COPYP1
@@ -297,3 +386,17 @@ R	ENT1	*
 	JMP	TREE2
 	ENT5	0,1
 	JMP	ADD
+OVERFLOW	OUT	*+3(18)
+	JBUS	*(18)
+	HLT	999
+	ALF  OVERF
+	ALF  LOW D
+	ALF  ETECE
+	ALF  D; AB
+	ALF  ORT  
+	ORIG	*+19
+AVAIL	CON	*+1
+* MEMORY POOL
+POOL	CON	0
+	CON	0
+	END	TEST
