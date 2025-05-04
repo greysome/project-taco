@@ -1,0 +1,9 @@
+Some notable programs:
+
+topsort        topological sort implementation
+poly.mixal     basic operations on polynomials represented as circular lists
+elevator       elevator simulation
+sparsemat      pivot step operation on a sparse matrix, represented using
+               links between nonzero entries
+differentiate  differentiate formulas represented as trees
+poly2.c        basic operations on polynomials represented as trees
