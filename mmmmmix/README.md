@@ -2,8 +2,6 @@
 
 This is a MIX emulator I wrote to follow along the code examples in Knuth's _The Art of Computer Programming_. Actually, there is an emulator, an assembler and a debugger called the _MIX Management Module_ (which is also used to run MIXAL programs).
 
-Some examples of MIX programs I wrote can be found [here](https://github.com/greysome/mixstuff).
-
 ## Installation
 
 There are two executables: `mmm` the MIX Management Module and `test`, which just runs a series of asserts to sanity-check that the emulator and assembler work as intended. They can be built via `make` and `make test` respectively. The only dependency is the C standard library, and I compile with C17 (older versions of C will probably work too).
