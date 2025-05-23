@@ -1,10 +1,17 @@
 // MIX MANAGEMENT MODULE
+#ifndef _MMM_C
+#define _MMM_C
 
 #include <ctype.h>
 #include <stdlib.h>
 #include "emulator.h"
 #include "assembler.h"
+#include "analyzeprogram.h"
 
+// Morally the struct to be defined here, but I need it to be in
+// analyzeprogram.h
+
+#ifndef _ANALYZEPROGRAM_H
 typedef struct {
   mix mix;
   parsestate ps;
@@ -14,6 +21,7 @@ typedef struct {
   char debuglines[4000][LINELEN];
   bool shouldtrace;
 } mmmstate;
+#endif
 
 #define RED(s)    "\033[31m" s "\033[37m"
 #define GREEN(s)  "\033[32m" s "\033[37m"
@@ -517,6 +525,43 @@ bool getsymvalue(char *s, mmmstate *mmm, word *w) {
   return false;
 }
 
+void analyzecommand(char *arg, mmmstate *mmm) {
+  if (arg[0] == '\0') {
+    printf(RED("Please provide a range <start>-<end>!\n"));
+    return;
+  }
+  if (!isdigit(arg[0])) {
+    printf(RED("Please provide a range <start>-<end>!\n"));
+    return;
+  }
+
+  char *fromstart = arg, *tostart;
+  int from, to;
+  while (!isspace(*arg) && *arg != '-' && *arg != '\0')
+    arg++;
+  if (*arg == '-') {
+    *(arg++) = '\0';
+    tostart = arg;
+    while (!isspace(*arg) && *arg != '\0')
+      arg++;
+    *arg = '\0';
+    from = atoi(fromstart);
+    to = atoi(tostart);
+  }
+  else {
+    *arg = '\0';
+    from = atoi(fromstart);
+    to = from;
+  }
+
+  if (from < 0 || from > to || to >= 4000) {
+    printf(RED("Please make sure that 0<=start<end<4000!\n"));
+    return;
+  }
+
+  analyzeprogram(mmm, from, to);
+}
+
 void viewcommand(char *arg, mmmstate *mmm) {
   // Print all nonzero memory addresses
   if (arg[0] == '\0') {
@@ -846,6 +891,8 @@ int main(int argc, char **argv) {
       printtime(&mmm);
     else if (line[0] == 'C')    // Export program into cards
       exportcards(&mmm);
+    else if (line[0] == 'A')    // Analyze program
+      analyzecommand(line+1, &mmm);
     else if (line[0] == 'h')    // Help
       printhelp();
     else if (line[0] == 'q')    // Quit
@@ -854,3 +901,5 @@ int main(int argc, char **argv) {
       printf(BLUE("Hold up, I don't understand that command\n"));
   }
 }
+
+#endif

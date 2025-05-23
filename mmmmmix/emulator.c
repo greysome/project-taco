@@ -1,5 +1,18 @@
 #include "emulator.h"
 
+// Cycle count of each instruction, from TAOCP Section 1.3.1, Table 1.
+// Note that the cycle count of MOVE is variable.
+// (So are IOC/IN/OUT, but these instructions will be specially handled.)
+static int instrtimes[64] = { 1, 2, 2, 10, 12, 10, 2, -1,
+		              2, 2, 2,  2,  2,  2, 2,  2,
+		              2, 2, 2,  2,  2,  2, 2,  2,
+		              2, 2, 2,  2,  2,  2, 2,  2,
+		              2, 2, 1,  1,  1,  1, 1,  1,
+		              1, 1, 1,  1,  1,  1, 1,  1,
+		              1, 1, 1,  1,  1,  1, 1,  1,
+		              2, 2, 2,  2,  2,  2, 2,  2};
+
+
 // Let's get this out of the way
 int max(int a, int b) { return a >= b ? a : b; }
 
@@ -48,6 +61,11 @@ byte getI(word instr) { return (instr >> 12) & ONES(6); }
 byte getF(word instr) { return (instr >> 6) & ONES(6); }
 byte getC(word instr) { return instr & ONES(6); }
 word getM(word instr, mix *mix);
+
+int getinstrtime(int C, int F) {
+  if (C == 7) return 1 + 2*F;
+  return instrtimes[C];
+}
 
 // Check that the F-specification has the form A:B where 0<=A<=B<=5.
 bool checkfieldspec(byte F) {
@@ -653,22 +671,6 @@ static bool do_io_transmission(IOtask *iotask, mix *mix) {
     return writetape(iotask, mix, M, F);
   assert(false);
 }
-
-// For each currently running IO task, do we need to do transmission now?
-static void check_io_tasks(mix *mix) {
-}
-
-// Cycle count of each instruction, from TAOCP Section 1.3.1, Table 1.
-// Note that the cycle count of MOVE is variable.
-// (So are IOC/IN/OUT, but these instructions will be specially handled.)
-static int instrtimes[64] = { 1, 2, 2, 10, 12, 10, 2, -1,
-		              2, 2, 2,  2,  2,  2, 2,  2,
-		              2, 2, 2,  2,  2,  2, 2,  2,
-		              2, 2, 2,  2,  2,  2, 2,  2,
-		              2, 2, 1,  1,  1,  1, 1,  1,
-		              1, 1, 1,  1,  1,  1, 1,  1,
-		              1, 1, 1,  1,  1,  1, 1,  1,
-		              2, 2, 2,  2,  2,  2, 2,  2};
 
 void onestep(mix *mix) {
   if (mix->done) return;

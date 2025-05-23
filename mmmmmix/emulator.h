@@ -35,18 +35,22 @@ typedef uint8_t byte;
 typedef uint32_t word;
 
 // Useful macros for manipulating words
-#define ONES(n) (((uint64_t)1<<(n)) - 1)
-// Extract information from word:
-#define MAG(w) ((w) & ONES(30))  // Unset the sign bit
-#define SIGN(w) (((w)>>30) & 1)  // Get the sign bit
+#define ONES(n)       (((uint64_t)1<<(n)) - 1)
+// Extract information from word
+#define MAG(w)        ((w) & ONES(30))  // Unset the sign bit
+#define SIGN(w)       (((w)>>30) & 1)   // Get the sign bit
 // Get integral value of word
-#define INT(w) (SIGN(w) ? MAG(w) : -MAG(w))
+#define INT(w)        (SIGN(w) ? MAG(w) : -MAG(w))
 // Construct word from an integer:
-#define POS(w) ((w) | (1<<30))
-#define NEG(w) MAG(w)
+#define POS(w)        ((w) | (1<<30))
+#define NEG(w)        MAG(w)
 #define WITHSIGN(w,s) ((s ? POS(w) : NEG(w)))
 // For operations involving rA and rX
-#define COMBINE(w,v) ((MAG(w) << 30) | MAG(v))
+#define COMBINE(w,v)  ((MAG(w) << 30) | MAG(v))
+// Macros for 13-bit addresses
+#define SIGNA(A)      (((A)>>12) & 1)
+#define MAGA(A)       ((A) & ONES(12))
+#define INTA(A)       (SIGNA(A) ? MAGA(A) : -MAGA(A))
 
 // Data relevant to the operation of each IO device
 typedef struct {
@@ -100,6 +104,7 @@ byte getI(word instr);
 byte getF(word instr);
 byte getC(word instr);
 word getM(word instr, mix *mix);
+int getinstrtime(int C, int F);
 
 // Return the portion of w specified by the field F.
 word applyfield(word w, byte F);
