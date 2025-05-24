@@ -8,9 +8,8 @@
 #include "assembler.h"
 #include "analyzeprogram.h"
 
-// Morally the struct to be defined here, but I need it to be in
+// Morally the struct should be defined here, but I need it to be in
 // analyzeprogram.h
-
 #ifndef _ANALYZEPROGRAM_H
 typedef struct {
   mix mix;
@@ -29,9 +28,9 @@ typedef struct {
 #define BLUE(s)   "\033[34m" s "\033[37m"
 #define CYAN(s)   "\033[36m" s "\033[37m"
 
-// Similar to printf, the following display functions return the
-// *visual width* of the printed string.
-// Thus a string like "\t" has width 8.
+//// Similar to printf, the following display functions return the
+//// *visual width* of the printed string.
+//// Thus a string like "\t" has width 8.
 
 int displayshort(word w) {
   bool sign = SIGN(w);
@@ -52,8 +51,8 @@ int displayword(word w) {
   return 1+5*3;
 }
 
-// Display instruction in a format similar to displayword, but with
-// first two bytes combined
+//// Display instruction in a format similar to displayword, but with
+//// first two bytes combined
 int displayinstr_raw(word w) {
   bool sign = (getA(w) >> 12) & 1;
   word A_abs = getA(w) & ONES(12);
@@ -64,8 +63,8 @@ int displayinstr_raw(word w) {
   return 1+5+3*3;
 }
 
-// Display the A,I(F) portion of the canonical representation of an
-// instruction
+//// Display the A,I(F) portion of the canonical representation of an
+//// instruction
 int _displayinstr_fields(bool sign, word A_abs, byte I, byte F, byte default_F) {
   int numchars = 0;
   if (!sign) {
@@ -80,8 +79,8 @@ int _displayinstr_fields(bool sign, word A_abs, byte I, byte F, byte default_F) 
   return numchars;
 }
 
-// Display the canonical representation of an instruction, or ??? if
-// invalid instruction.
+//// Display the canonical representation of an instruction, or ??? if
+//// invalid instruction.
 int displayinstr_canonical(word w) {
   bool sign = (getA(w) >> 12) & 1;
   word A_abs = getA(w) & ONES(12);
@@ -296,10 +295,10 @@ int displayinstr_canonical(word w) {
   else UNKNOWN()
 }
 
-// Display the MIXAL source resulting in that instruction.
-// This differs from the canonical representation in that there may be
-// user-defined constants.
-// If MIXAL source is not available, fall back to the canonical representation.
+//// Display the MIXAL source resulting in that instruction.
+//// This differs from the canonical representation in that there may be
+//// user-defined constants.
+//// If MIXAL source is not available, fall back to the canonical representation.
 void displayinstr_mixal(int i, mmmstate *mmm) {
   if (i < 0 || i >= 4000) {
     printf(RED("Invalid memory address %04d\n"), i);
@@ -313,9 +312,9 @@ void displayinstr_mixal(int i, mmmstate *mmm) {
     printf(mmm->debuglines[i]);
 }
 
-// Display the instruction as a complete line, for debugging purposes.
-// The following format is used:
-// LINENUM:EXECCOUNT +- AAAA I F C            MIXAL or canonical
+//// Display the instruction as a complete line, for debugging purposes.
+//// The following format is used:
+//// LINENUM:EXECCOUNT +- AAAA I F C            MIXAL or canonical
 void displayinstr_debug(int i, mmmstate *mmm) {
   int execcount = mmm->mix.execcounts[i];
   if (mmm->mix.modified[i]) {
@@ -335,16 +334,16 @@ void displayinstr_debug(int i, mmmstate *mmm) {
   }
 }
 
-// Display the memory address as a complete line, with lots of information.
-// The following format is used:
-// LINENUM +- AAAA I F C  +- B1 B2 B3 B4 B5  (integer value)           MIXAL or canonical
+//// Display the memory address as a complete line, with lots of information.
+//// The following format is used:
+//// LINENUM +- AAAA I F C  +- B1 B2 B3 B4 B5  (integer value)           MIXAL or canonical
 void displayaddr_verbose(int i, mmmstate *mmm) {
   if (i < 0 || i >= 4000) {
     printf(RED("Invalid memory address %04d\n"), i);
     return;
   }
-  // Display currently running instruction in green,
-  // and modified instructions in red.
+  //// Display currently running instruction in green,
+  //// and modified instructions in red.
   if (i == mmm->mix.PC || mmm->mix.modified[i]) {
     if (i == mmm->mix.PC)
       printf("\033[32m");
@@ -364,7 +363,7 @@ void displayaddr_verbose(int i, mmmstate *mmm) {
     displayinstr_mixal(i, mmm);
     printf("\033[37m\n");
   }
-  // Display line in normal formatting
+  //// Display line in normal formatting
   else {
     printf(BLUE("%04d "), i);
     printf("\033[33m");
@@ -381,7 +380,7 @@ void displayaddr_verbose(int i, mmmstate *mmm) {
   }
 }
 
-void printregisters(mmmstate *mmm) {
+void statecommand(mmmstate *mmm) {
   printf(" A: ");
   printf("\033[33m"); displayword(mmm->mix.A); printf("\033[37m");
   printf("\t");
@@ -458,7 +457,7 @@ int numdigits(int x) {
   return i;
 }
 
-void printtime(mmmstate *mmm) {
+void timecommand(mmmstate *mmm) {
   int totaltime = 0;
   int maxdigits = 0;
   for (int i = 0; i < 4000; i++) {
@@ -515,7 +514,7 @@ bool onestepwrapper(int tracecount, mmmstate *mmm) {
 }
 
 bool getsymvalue(char *s, mmmstate *mmm, word *w) {
-  // Find the symbol in parse state
+  //// Find the symbol in parse state
   for (int i = 0; i < MAXSYMS; i++) {
     if (strncmp(s, mmm->ps.syms[i], 11) == 0) {
       *w = mmm->ps.symvals[i];
@@ -523,6 +522,29 @@ bool getsymvalue(char *s, mmmstate *mmm, word *w) {
     }
   }
   return false;
+}
+
+//// Parse an expression of the form "<number>-<number>".
+//// A single "<number>" will also parse fine as a range with one
+//// element.
+void parserange(char *arg, int *from, int *to) {
+  char *fromstart = arg, *tostart;
+  while (!isspace(*arg) && *arg != '-' && *arg != '\0')
+    arg++;
+  if (*arg == '-') {
+    *(arg++) = '\0';
+    tostart = arg;
+    while (!isspace(*arg) && *arg != '\0')
+      arg++;
+    *arg = '\0';
+    *from = atoi(fromstart);
+    *to = atoi(tostart);
+  }
+  else {
+    *arg = '\0';
+    *from = atoi(fromstart);
+    *to = *from;
+  }
 }
 
 void analyzecommand(char *arg, mmmstate *mmm) {
@@ -534,67 +556,35 @@ void analyzecommand(char *arg, mmmstate *mmm) {
     printf(RED("Please provide a range <start>-<end>!\n"));
     return;
   }
-
-  char *fromstart = arg, *tostart;
-  int from, to;
-  while (!isspace(*arg) && *arg != '-' && *arg != '\0')
-    arg++;
-  if (*arg == '-') {
-    *(arg++) = '\0';
-    tostart = arg;
-    while (!isspace(*arg) && *arg != '\0')
-      arg++;
-    *arg = '\0';
-    from = atoi(fromstart);
-    to = atoi(tostart);
-  }
-  else {
-    *arg = '\0';
-    from = atoi(fromstart);
-    to = from;
-  }
-
-  if (from < 0 || from > to || to >= 4000) {
+  int startaddr, endaddr;
+  parserange(arg, &startaddr, &endaddr);
+  if (startaddr < 0 || startaddr > endaddr || endaddr >= 4000) {
     printf(RED("Please make sure that 0<=start<end<4000!\n"));
     return;
   }
-
-  analyzeprogram(mmm, from, to);
+  analyzeprogram(mmm, startaddr, endaddr);
 }
 
 void viewcommand(char *arg, mmmstate *mmm) {
-  // Print all nonzero memory addresses
+  //// Print all nonzero memory addresses
   if (arg[0] == '\0') {
     for (int i = 0; i < 4000; i++) {
       if (mmm->mix.mem[i] != POS(0))
 	displayaddr_verbose(i, mmm);
     }
   }
-  // Print selected addresses based on arg, where
-  // arg = "<from>-<to>" or "<arg>"
+  //// Print addresses in a range
   else if (isdigit(arg[0])) {
-    char *fromstart = arg, *tostart;
     int from, to;
-    while (!isspace(*arg) && *arg != '-' && *arg != '\0')
-      arg++;
-    if (*arg == '-') {
-      *(arg++) = '\0';
-      tostart = arg;
-      while (!isspace(*arg) && *arg != '\0')
-	arg++;
-      *arg = '\0';
-      from = atoi(fromstart);
-      to = atoi(tostart);
-    }
-    else {
-      *arg = '\0';
-      from = atoi(fromstart);
-      to = from;
+    parserange(arg, &from, &to);
+    if (from < 0 || from > to || from >= 4000) {
+      printf(RED("Please make sure that 0<=start<end<4000!\n"));
+      return;
     }
     for (int i = from; i <= to; i++)
       displayaddr_verbose(i, mmm);
   }
-  // Print address corresponding to the given symbol
+  //// Print address corresponding to the given symbol
   else if (arg[0] == '.') {
     word w;
     if (getsymvalue(arg+1, mmm, &w))
@@ -718,15 +708,15 @@ static unsigned char mixchr_ascii(byte b) {
     return ']';
 }
 
-void exportcards(mmmstate *mmm) {
-  // The last memory cell that is not +0
+void exportcommand(mmmstate *mmm) {
+  //// Find the last memory cell that is not +0
   int programend = 0;
   for (int i = 0; i < 4000; i++) {
     if (mmm->mix.mem[i] != POS(0))
       programend = i;
   }
-  // "Snap" programend to the end of card
-  // e.g. 0-15 -> 15, 16-31 -> 31
+  //// "Snap" programend to the end of card
+  //// e.g. 0-15 -> 15, 16-31 -> 31
   programend += 15 - programend%16;
   // If the program extends to cell 3400 (which would be the end of
   // the 218th card), then it won't fit when loaded as cards into
@@ -762,7 +752,7 @@ void exportcards(mmmstate *mmm) {
       fputc('\n', fp);
   }
 
-  // End-of-program card
+  //// End-of-program card
   fputs(".....", fp);
   for (int i = 0; i < 75; i++)
     fputc(' ', fp);
@@ -778,20 +768,22 @@ void printhelp() {
     "@<file>\t\tuse card file\n"
     "#<n><file>\tuse tape file\n"
     "s\t\trun one step\n"
-    "b<line>\t\trun till specified line\n"
-    "b.<sym>\t\trun till specified line\n"
+    "b<addr>\t\trun till address\n"
+    "b.<sym>\t\trun till address at symbol\n"
     "g\t\trun whole program\n"
-    "g<n>\t\ttrace first n executions of each line (n is a digit)\n"
+    "g<digit>\ttrace first few executions of each address\n"
     "g+\t\ttrace everything\n"
-    "v\t\tview nonempty memory cells\n"
-    "v<line>\t\tview specific cell\n"
-    "v.<sym>\t\tview specific cell\n"
-    "v<from>-<to>\tview a range of cells\n"
-    "r\t\tview registers and flags\n"
+    "v\t\tview nonempty memory addresses\n"
+    "v<range>\tview memory addresses\n"
+    "v.<sym>\t\tview memory address at symbol\n"
+    "r\t\tview internal state\n"
     "t\t\tprint timing statistics\n"
+    "a<range>\tanalyze program\n"
     "C\t\texport program into cards\n"
     "h\t\tprint this help\n"
     "q\t\tquit\n"
+    "\n"
+    "<range> is either <addr>-<addr> or <addr>\n"
   );
 }
 
@@ -822,7 +814,7 @@ int main(int argc, char **argv) {
   mmmstate mmm;
   initmmmstate(&mmm);
 
-  // Handle arguments
+  //// Handle arguments
   if (argc < 2) {
     printf(RED("Please specify a filename!\n"));
     return 0;
@@ -844,7 +836,7 @@ int main(int argc, char **argv) {
     if (feof(stdin))
       return 0;
 
-    if (line[0] == '\0') {      // Previous command
+    if (line[0] == '\0') {      // Run the previous command
       strncpy(line, mmm.prevline, LINELEN);
     }
     strncpy(mmm.prevline, line, LINELEN);
@@ -885,14 +877,14 @@ int main(int argc, char **argv) {
     }
     else if (line[0] == 'v')    // View memory
       viewcommand(line+1, &mmm);
-    else if (line[0] == 'r')    // View registers + flags
-      printregisters(&mmm);
+    else if (line[0] == 'r')    // View internal state
+      statecommand(&mmm);
     else if (line[0] == 't')    // View timing statistics
-      printtime(&mmm);
-    else if (line[0] == 'C')    // Export program into cards
-      exportcards(&mmm);
-    else if (line[0] == 'A')    // Analyze program
+      timecommand(&mmm);
+    else if (line[0] == 'a')    // Analyze program
       analyzecommand(line+1, &mmm);
+    else if (line[0] == 'C')    // Export program into cards
+      exportcommand(&mmm);
     else if (line[0] == 'h')    // Help
       printhelp();
     else if (line[0] == 'q')    // Quit
