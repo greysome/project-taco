@@ -15,8 +15,9 @@
 //// self-modifying code (the only exception is "JMP *" statements,
 //// which are treated as exit points).
 ////
-//// For example, consider Program M of 1.3.2 (in /taocp/ch1/max.mixal),
-//// which lives in addresses 0-9:
+//// For example, consider the following Program M of 1.3.2 (in
+//// /taocp/ch1/max.mixal), which lives in addresses 0-9. (Note that
+//// this is just a code snippet.)
 ////
 //// MAXIMUM	STJ	EXIT
 //// INIT	ENT3	0,1
@@ -30,8 +31,8 @@
 //// EXIT	JMP	*
 //// 	        END	MAXIMUM
 ////
-//// The command "A0-9" gives the following output:
-//// >> A0-9
+//// The command "a0-9" gives the following output:
+//// >> a0-9
 //// E8: # TIMES TAKEN		LDA	X,3
 //// E10: # TIMES TAKEN		J3P	LOOP
 //// Total time = + 3*E8 + 5*E10 + 7
@@ -244,7 +245,7 @@ nextedge:
 
   for (int i = 0; i < curid; i++) {
     edge *ee = E+i;
-    if (!ee->iscycle || ee->s == End) continue;
+    if (!ee->iscycle || ee->s == End || ee->weight == 0) continue;
     printf("E%d: %s\t%s\n", i, ee->branch ? "# TIMES TAKEN" : "# TIMES UNTAKEN", mmm->debuglines[ee->s]);
   }
   printf("Total time = ");

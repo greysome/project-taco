@@ -7,20 +7,7 @@
 #include "emulator.h"
 #include "assembler.h"
 #include "analyzeprogram.h"
-
-// Morally the struct should be defined here, but I need it to be in
-// analyzeprogram.h
-#ifndef _ANALYZEPROGRAM_H
-typedef struct {
-  mix mix;
-  parsestate ps;
-  char prevline[LINELEN];
-  char globalcardfile[LINELEN];
-  char globaltapefiles[8][LINELEN];
-  char debuglines[4000][LINELEN];
-  bool shouldtrace;
-} mmmstate;
-#endif
+#include "mmm.h"
 
 #define RED(s)    "\033[31m" s "\033[37m"
 #define GREEN(s)  "\033[32m" s "\033[37m"

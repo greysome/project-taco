@@ -1,4 +1,4 @@
-CFLAGS = -g
+CFLAGS = -g -fsanitize=address
 
 all: mmm
 mmm: mmm.c analyzeprogram.c emulator.c assembler.c

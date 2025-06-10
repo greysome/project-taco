@@ -79,7 +79,7 @@ DONE	CMP1	=ANS=
 	JXNZ	*-3
 	HLT
 *
-LPREN	ALF      (
-RPREN	ALF  )    
-EQUALS	ALF      =
-	END BEGIN
+LPREN	ALF	    (
+RPREN	ALF	)    
+EQUALS	ALF	    =
+	END	BEGIN

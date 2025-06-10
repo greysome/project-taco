@@ -389,20 +389,18 @@ void testassembler() {
   line = "VERYLONGSYMBOL\n";
   assert(!parsesym(&line, sym));
 
-  // TEST: parseOP
-  char op[4]; int opidx;
-  line = "ALF\n";
-  assert(parseOP(&line, op, &opidx));
+  // TEST: parseoperator
+  int opidx;
+  byte C, F;
+  line = "HLT\t";
+  assert(parseoperator(&line, &C, &F));
+  assert(C==5 && F==2);
 
-  line = "ADD\n";
-  assert(parseOP(&line, op, &opidx));
-  assert(opidx == 1);
+  line = "XXX\t";
+  assert(!parseoperator(&line, &C, &F));
 
-  line = "XXX\n";
-  assert(!parseOP(&line, op, &opidx));
-
-  line = "TOOLONG\n";
-  assert(!parseOP(&line, op, &opidx));
+  line = "TOOLONG\t";
+  assert(!parseoperator(&line, &C, &F));
 
   // TEST: parsenum
   int num;
@@ -416,7 +414,7 @@ void testassembler() {
   line = "20BY20\n";
   assert(!parsenum(&line, &num));
 
-  word w;
+  word w; byte b;
   // TEST: parseatomic
   line = "UNDEFINED\n";
   assert(!parseatomic(&line, &w, &ps));
@@ -475,33 +473,33 @@ void testassembler() {
   line = "* \n";
   assert(parseA(&line, &w, &ps));
   assert(w == POS(3000));
+
   line = "###\n";
-  assert(parseA(&line, &w, &ps));
-  assert(w == POS(0));
+  assert(!parseA(&line, &w, &ps));
 
   // TEST: parseI
   line = ",6\n";
-  assert(parseI(&line, &w, &ps));
-  assert(w == POS(6));
+  assert(parseI(&line, &b, &ps));
+  assert(b == 6);
 
   line = ",###\n";
-  assert(!parseI(&line, &w, &ps));
+  assert(!parseI(&line, &b, &ps));
 
   line = "###\n";
-  assert(parseI(&line, &w, &ps));
-  assert(w == POS(0));
+  assert(parseI(&line, &b, &ps));
+  assert(b == 0);
 
   // TEST: parseF
-  line = "(1234)\n";
-  assert(parseF(&line, &w, &ps));
-  assert(w == POS(1234));
+  line = "(12)\n";
+  assert(parseF(&line, &b, &ps));
+  assert(b == 12);
 
-  line = "(1234\n";
-  assert(!parseF(&line, &w, &ps));
+  line = "(12\n";
+  assert(!parseF(&line, &b, &ps));
 
   line = "(1:5)\n";
-  assert(parseF(&line, &w, &ps));
-  assert(w == POS(13));
+  assert(parseF(&line, &b, &ps));
+  assert(b == 13);
 
   // TEST: parseW
   line = "1\n";
@@ -519,32 +517,32 @@ void testassembler() {
   extraparseinfo extraparseinfo;
   // TEST: parseline
   initparsestate(&ps);
-  line = "START NOP\n";
+  line = "START\tNOP\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.numsyms == 1);
   assert(!strcmp(ps.syms[0], "START"));
   assert(ps.symvals[0] == POS(ps.star-1));
 
-  line = "TEN EQU 10\n";
+  line = "TEN\tEQU\t10\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.numsyms == 2);
   assert(!strcmp(ps.syms[1], "TEN"));
   assert(ps.symvals[1] == POS(10));
 
-  line = " CON 1337\n";
+  line = "\tCON\t1337\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.numsyms == 2);
   assert(mix.mem[ps.star-1] == POS(1337));
 
-  line = " ALF A2J5S\n";
+  line = "\tALF\tA2J5S\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(mix.mem[ps.star-1] == WORD(true,1,32,11,35,22));
 
-  line = " ORIG 2000\n";
+  line = "\tORIG\t2000\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.star == 2000);
 
-  line = " ORIG 9999\n";
+  line = "\tORIG\t9999\n";
   assert(!parseline(line, &ps, &mix, &extraparseinfo));
 
   line = "==INVALID LINE==";
@@ -554,30 +552,30 @@ void testassembler() {
   assert(parseline(line, &ps, &mix, &extraparseinfo));
 
   ps.star = 3000;
-  line = " STA 2000(1:5)\n";
+  line = "\tSTA\t2000(1:5)\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(mix.mem[3000] == INSTR(ADDR(2000), 0, 13, 24));
 
   // TEST: future references
   initparsestate(&ps);
-  line = " JMP FUTURE\n";
+  line = "\tJMP\tFUTURE\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.numfuturerefs == 1);
   assert(!ps.futurerefs[0].resolved);
   assert(ps.futurerefs[0].addr == 0);
   assert(!ps.futurerefs[0].which);
   assert(!strcmp(ps.futurerefs[0].sym, "FUTURE"));
-  line = "FUTURE NOP\n";
+  line = "FUTURE\tNOP\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  line = " JMP UNDEFINED\n";
+  line = "\tJMP\tUNDEFINED\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.numfuturerefs == 2);
-  line = " JMP =2000=\n";
+  line = "\tJMP\t=2000=\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.numfuturerefs == 3);
   assert(ps.futurerefs[2].which);
   assert(ps.futurerefs[2].literal == POS(2000));
-  line = "FOO END 1000\n";
+  line = "FOO\tEND\t1000\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.futurerefs[0].resolved);
   assert(ps.futurerefs[1].resolved);
@@ -592,40 +590,49 @@ void testassembler() {
 
   // TEST: local symbols
   initparsestate(&ps);
-  line = "1H NOP\n";
+  line = "1H\tNOP\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.localsymcounts[1] == 1);
   assert(lookupsym("1H#00", &w, &ps));
   assert(w == POS(0));
-  line = " JMP 1F\n";
+  line = "\tJMP\t1F\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  line = " JMP 1B\n";
+  line = "\tJMP\t1B\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  line = "2H NOP\n";
+  line = "2H\tNOP\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.localsymcounts[2] == 1);
   assert(lookupsym("2H#00", &w, &ps));
   assert(w == POS(3));
-  line = "1H NOP\n";
+  line = "1H\tNOP\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.localsymcounts[1] == 2);
   assert(lookupsym("1H#01", &w, &ps));
   assert(w == POS(4));
-  line = " END 1000\n";
+  line = "\tEND\t1000\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(getA(mix.mem[1]) == (4|(1<<12)));
   assert(getA(mix.mem[2]) == (0|(1<<12)));
 
   // TEST: multiple of the same undefined symbol
   initparsestate(&ps);
-  line = " JMP UNDEFINED\n";
+  line = "\tJMP\tUNDEFINED\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  line = " JMP UNDEFINED\n";
+  line = "\tJMP\tUNDEFINED\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  line = " END 1000\n";
+  line = "\tEND\t1000\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(getA(mix.mem[0]) == (2|(1<<12)));
   assert(getA(mix.mem[1]) == (2|(1<<12)));
+
+  // TEST: no A/I/F field, but with comment
+  initparsestate(&ps);
+  line = "\tHLT\t\thalts the program";
+  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(INTA(getA(mix.mem[0])) == 0);
+  assert(getI(mix.mem[0]) == 0);
+  assert(getF(mix.mem[0]) == 2);
+  assert(getC(mix.mem[0]) == 5);
 }
 
 int main() {

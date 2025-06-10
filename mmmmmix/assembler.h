@@ -4,10 +4,6 @@
 #include <stdlib.h>
 #include "emulator.h"
 
-#define LINELEN 100
-
-#define SKIPSPACES(t) while (isspace(*((t)++))); (t)--
-
 // Stores information about a future reference or a literal constant
 // to be filled in later.
 typedef struct {
@@ -39,7 +35,7 @@ void initparsestate(parsestate *ps);
 bool lookupsym(char *sym, word *val, parsestate *ps);
 
 bool parsesym(char **s, char *sym);
-bool parseOP(char **s, char *op, int *opidx);
+bool parseoperator(char **s, byte *C, byte *F);
 bool parsenum(char **s, int *val);
 
 // parseatomic() and the rest all write into a word instead of an int,
@@ -48,10 +44,10 @@ bool parsenum(char **s, int *val);
 
 bool parseatomic(char **s, word *val, parsestate *ps);
 bool parseexpr(char **s, word *val, parsestate *ps);
-bool parseA(char **s, word *val, parsestate *ps);
-bool parseI(char **s, word *val, parsestate *ps);
-bool parseF(char **s, word *val, parsestate *ps);
-bool parseW(char **s, word *val, parsestate *ps);
+bool parseA(char **s, word *A, parsestate *ps);
+bool parseI(char **s, byte *I, parsestate *ps);
+bool parseF(char **s, byte *F, parsestate *ps);
+bool parseW(char **s, word *W, parsestate *ps);
 
 bool parseline(char *line, parsestate *ps, mix *mix, extraparseinfo *extraparseinfo);
 #endif

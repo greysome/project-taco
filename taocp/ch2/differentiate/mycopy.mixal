@@ -47,29 +47,29 @@ PRINT	STJ	9F
 * TEST CASE
 * y = 3 ln(x+1) - a/x^2
 Y	CON	*+2(LLINK),Y(RLINKT),1(TYPE)		y -> (-, y)
-	ALF     Y 
+	ALF	   Y 
 	CON	*+2(LLINK),-Y(RLINKT),5(TYPE)		- -> (*, Y)
-	ALF     - 
+	ALF	   - 
 	CON	*+2(LLINK),*+12(RLINKT),6(TYPE)		* -> (3, /)
-	ALF     * 
+	ALF	   * 
 	CON	0(LLINK),*+2(RLINKT),0(TYPE)		3 -> (NULL, ln)
 	CON	3
 	CON	*+2(LLINK),-*+4(RLINKT),2(TYPE)		ln -> (+, *)
-	ALF    LN 
+	ALF	  LN 
 	CON	*+2(LLINK),-*+2(RLINKT),4(TYPE)		+ -> (x, ln)
-	ALF     + 
+	ALF	   + 
 	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 1)
-	ALF     X 
+	ALF	   X 
 	CON	0(LLINK),-*+4(RLINKT),0(TYPE)		1 -> (NULL, +)
 	CON	1
 	CON	*+2(LLINK),-*+14(RLINKT),7(TYPE)	/ -> (a, -)
-	ALF     / 
+	ALF	   / 
 	CON	0(LLINK),*+2(RLINKT),1(TYPE)		a -> (NULL, ^)
-	ALF     A 
+	ALF	   A 
 	CON	*+2(LLINK),-*+4(RLINKT),8(TYPE)		^ -> (x, /)
-	ALF    ** 
+	ALF	  ** 
 	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 2)
-	ALF     X 
+	ALF	   X 
 	CON	0(LLINK),-*+4(RLINKT),0(TYPE)		2 -> (NULL, ^)
 	CON	2
 * PROGRAM STARTS HERE
@@ -151,11 +151,11 @@ HEAD	CON	0
 OVERFLOW	OUT	*+3(18)
 	JBUS	*(18)
 	HLT	999
-	ALF  OVERF
-	ALF  LOW D
-	ALF  ETECE
-	ALF  D; AB
-	ALF  ORT  
+	ALF	OVERF
+	ALF	LOW D
+	ALF	ETECE
+	ALF	D; AB
+	ALF	ORT  
 	ORIG	*+19
 AVAIL	CON	*+1
 * MEMORY POOL

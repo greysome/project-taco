@@ -2,16 +2,7 @@
 #define _ANALYZEPROGRAM_H
 #include "emulator.h"
 #include "assembler.h"
-
-typedef struct {
-  mix mix;
-  parsestate ps;
-  char prevline[LINELEN];
-  char globalcardfile[LINELEN];
-  char globaltapefiles[8][LINELEN];
-  char debuglines[4000][LINELEN];
-  bool shouldtrace;
-} mmmstate;
+#include "mmm.h"
 
 void analyzeprogram(mmmstate *mmm, int startaddr, int endaddr);
 

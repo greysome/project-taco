@@ -58,9 +58,9 @@ DONE	CMP1	=ANS=
 	JXNZ	*-3
 	HLT
 *
-LPREN	ALF      (
-RPREN	ALF  )    
-EQUALS	ALF      =
+LPREN	ALF	    (
+RPREN	ALF	)    
+EQUALS	ALF	    =
 *
 GO	MOVE	LPREN
 	MOVE	PERM,3

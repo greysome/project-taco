@@ -21,7 +21,7 @@ char *MIXOPS[] = {
   "CMPA", "CMP1", "CMP2", "CMP3", "CMP4", "CMP5", "CMP6", "CMPX"
 };
 
-word DEFAULTOPFIELDS[] = {
+byte DEFAULTOPFIELDS[] = {
   0, 5, 5, 5, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5, 1,
   5, 5, 5, 5, 5, 5, 5, 5,
   5, 5, 5, 5, 5, 5, 5, 5,
@@ -42,7 +42,7 @@ word DEFAULTOPFIELDS[] = {
   5, 5, 5, 5, 5, 5, 5, 5
 };
 
-word OPCODES[] = {
+byte OPCODES[] = {
   0, 1, 2, 3, 4, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7,
   8, 9, 10, 11, 12, 13, 14, 15,
   16, 17, 18, 19, 20, 21, 22, 23,
@@ -87,20 +87,17 @@ void addsym(char *sym, word val, parsestate *ps) {
   ps->numsyms++;
 }
 
+//// A symbol is a string of one to ten letters and/or digits,
+//// containing at least one letter.
 bool parsesym(char **s, char *sym) {
-  SKIPSPACES(*s);
   char *t = *s, *start = *s;
   int i = 0;
   char c;
   bool hasletter = false;
   while (i++, !isspace(c = *(t++))) {
     if (i > 10) goto err;
-
-    if (isalnum(c))
-      *(sym++) = toupper(c);
-    else
-      break;
-
+    if (isalnum(c)) *(sym++) = toupper(c);
+    else break;
     if (isalpha(c)) hasletter = true;
   }
   if (!hasletter) goto err;
@@ -112,27 +109,19 @@ err:
   return false;
 }
 
-#define ISSPECIALOP(s) (!strcmp(s, "EQU") || !strcmp(s, "ORIG") || !strcmp(s, "CON") || \
-			!strcmp(s, "ALF") || !strcmp(s, "END"))
-
-bool parseOP(char **s, char *op, int *opidx) {
-  SKIPSPACES(*s);
-  char *t = *s, *start = *s, *opstart = op;
-  int i = 0;
+bool parseoperator(char **s, byte *C, byte *F) {
+  char *t = *s, *start = *s;
+  int k = 0;
   char c;
-  while (i++, !isspace(c = *(t++))) {
-    if (i > 4) goto err;
-    *(op++) = toupper(c);
-  }
+  // A MIX operator has at most 5 characters
+  while (k++, !isspace(c = *(t++)))
+    if (k > 4) goto err;
   *s = t-1;
-  *op = '\0';
-  if (ISSPECIALOP(opstart)) {
-    *opidx = -1;
-    return true;
-  }
+  k--;
   for (int i = 0; i < sizeof(MIXOPS)/sizeof(char*); i++) {
-    if (!strcmp(opstart, MIXOPS[i])) {
-      *opidx = i;
+    if (!strncmp(start, MIXOPS[i], k)) {
+      *F = DEFAULTOPFIELDS[i];
+      *C = OPCODES[i];
       return true;
     }
   }
@@ -142,7 +131,6 @@ err:
 }
 
 bool parsenum(char **s, int *val) {
-  SKIPSPACES(*s);
   char *t = *s, *start = *s;
   int digits[10], *d = digits;
   int i = 0;
@@ -166,25 +154,27 @@ err:
   return false;
 }
 
-// parseatomic() and the rest all write into a word instead of an int,
-// because words and ints are NOT equivalent.
-// Specifically, +0 != -0.
+//// parseatomic() and the rest all write into a word instead of an int,
+//// because words and ints are NOT equivalent.
+//// Specifically, +0 != -0.
 
 bool parseatomic(char **s, word *val, parsestate *ps) {
-  SKIPSPACES(*s);
   char *start = *s;
   int i;
-  if (isdigit(**s) && parsenum(s, &i)) {
-    *val = POS(i);
-  }
+
+  // Number?
+  if (isdigit(**s) && parsenum(s, &i)) *val = POS(i);
+
+  // * refers to the current line
   else if (**s == '*') {
     (*s)++;
     *val = POS(ps->star);
   }
+
+  // Treat it as a symbol
   else {
     char sym[11];
-    if (!parsesym(s, sym))
-      goto err;
+    if (!parsesym(s, sym)) goto err;
     if (isdigit(sym[0]) && sym[1] == 'B' && sym[2] == '\0') {
       sym[1] = 'H';
       sym[2] = '#';
@@ -193,8 +183,7 @@ bool parseatomic(char **s, word *val, parsestate *ps) {
       sym[4] = '0' + n%10;
       sym[5] = '\0';
     }
-    if (!lookupsym(sym, &i, ps))
-      goto err;
+    if (!lookupsym(sym, &i, ps)) goto err;
     *val = i;
   }
   return true;
@@ -204,9 +193,9 @@ err:
 }
 
 bool parseexpr(char **s, word *val, parsestate *ps) {
-  SKIPSPACES(*s);
   char *start = *s;
-  word final = POS(0), w;
+  word final = POS(0);
+  word w;
   char prevsign = '\0';
   if (**s == '+') {
     (*s)++;
@@ -217,15 +206,11 @@ bool parseexpr(char **s, word *val, parsestate *ps) {
     prevsign = '-';
   }
 start:
-  if (!parseatomic(s, &w, ps))
-    goto err;
+  if (!parseatomic(s, &w, ps)) goto err;
 
-  if (prevsign == '\0')
-    final = w;
-  else if (prevsign == '+')
-    addword(&final, w);
-  else if (prevsign == '-')
-    subword(&final, w);
+  if (prevsign == '\0') final = w;
+  else if (prevsign == '+') addword(&final, w);
+  else if (prevsign == '-') subword(&final, w);
   else if (prevsign == '*') {
     word v;
     mulword(&final, &v, w);
@@ -265,14 +250,15 @@ err:
   return false;
 }
 
-bool parseW(char **s, word *val, parsestate *ps);
-bool parseA(char **s, word *val, parsestate *ps) {
-  SKIPSPACES(*s);
+bool parseW(char **s, word *W, parsestate *ps);
+bool parseA(char **s, word *A, parsestate *ps) {
   char *start = *s;
   char sym[11];
-  if (parseexpr(s, val, ps))
-    return true;
-  else if (parsesym(s, sym)) {  // If it is a future reference
+  //// Expression?
+  if (parseexpr(s, A, ps)) return true;
+
+  //// Future reference?
+  else if (parsesym(s, sym)) {
     if (isdigit(sym[0]) && sym[1] == 'F' && sym[2] == '\0') {
       sym[1] = 'H';
       sym[2] = '#';
@@ -287,48 +273,63 @@ bool parseA(char **s, word *val, parsestate *ps) {
     fr.which = false;
     strcpy(fr.sym, sym);
     ps->futurerefs[ps->numfuturerefs++] = fr;
+    *A = POS(0);  // The A-field will be filled in later.
+    return true;
   }
-  else if (**s == '=') {        // If it is a local constant
+
+  //// Local constant?
+  else if (**s == '=') {
     word w;
     (*s)++;
-    if (!parseW(s, &w, ps))
-      goto err;
-    if (**s != '=')
-      goto err;
+    if (!parseW(s, &w, ps)) goto err;
+    if (**s != '=') goto err;
     futureref fr;
     fr.resolved = false;
     fr.addr = ps->star;
     fr.which = true;
     fr.literal = w;
     ps->futurerefs[ps->numfuturerefs++] = fr;
+    *A = POS(0);  // The A-field will be filled in later.
+    return true;
   }
-  *val = POS(0);  // The A-field will be filled in later.
-  return true;
+
+  //// There is no A-field (we will move on to the I or F field or the next line)
+  else if (**s == '\t' || **s == ',' || **s == '(') {
+    *A = POS(0);
+    return true;
+  }
+
 err:
   *s = start;
   return false;
 }
 
-bool parseI(char **s, word *val, parsestate *ps) {
+bool parseI(char **s, byte *I, parsestate *ps) {
   // Don't skip spaces here; if there is whitespace before the comma,
   // we take it to be a comment, e.g.
   // LDA     0       ,comma
+  word _I;
   char sym[11];
-  if (**s == ',')
-    return parseexpr((++*s, s), val, ps);
-  *val = POS(0);
+  if (**s == ',') {
+    if (!parseexpr((++*s, s), &_I, ps)) return false;
+    *I = INT(_I);
+  }
+  else {
+    *I = 0;
+  }
   return true;
 }
 
-bool parseF(char **s, word *val, parsestate *ps) {
+bool parseF(char **s, byte *F, parsestate *ps) {
   // Don't skip spaces here; if there is whitespace before the opening
   // bracket, we take it to be a comment, e.g.
   // LDA     0       (test comment)
+  word _F;
   char *start = *s;
   if (**s == '(') {
     (*s)++;
-    if (!parseexpr(s, val, ps) || **s != ')')
-      return false;
+    if (!parseexpr(s, &_F, ps) || **s != ')') return false;
+    *F = INT(_F);
     (*s)++;
     return true;
   }
@@ -336,20 +337,13 @@ bool parseF(char **s, word *val, parsestate *ps) {
   return true;
 }
 
-bool parseW(char **s, word *val, parsestate *ps) {
-  word w;
-  word F;
+bool parseW(char **s, word *W, parsestate *ps) {
+  word w; byte F;
 loop:
-  F = POS(5);
-  if (!parseexpr(s, &w, ps))
-    return false;
-
-  if (**s == '(') {
-    if (!parseF(s, &F, ps))
-      return false;
-  }
-  storeword(val, w, F);
-
+  F = 5;
+  if (!parseexpr(s, &w, ps)) return false;
+  if (**s == '(' && !parseF(s, &F, ps)) return false;
+  storeword(W, w, F);
   if (**s == ',') {
     (*s)++;
     goto loop;
@@ -359,10 +353,6 @@ loop:
 
 bool parseALF(char **s, char *alf, parsestate *ps) {
   char *start = *s;
-  if (**s != ' ')
-    goto err;
-  if (*(++(*s)) == ' ')
-    (*s)++;
   for (int i = 0; i < 5; i++) {
     if (isalnum(**s) || **s == ' ' || **s == '.' || **s == ',' || **s == '(' ||
 	**s == ')' || **s == '+' || **s == '-' || **s == '*' || **s == '/' ||
@@ -378,80 +368,84 @@ err:
   return false;
 }
 
-// Parse line, returning the status and updating the parse state and
-// mix instance.
+//// Parse line, returning the status and updating the parse state and
+//// mix instance.
 bool parseline(char *line, parsestate *ps, mix *mix, extraparseinfo *extraparseinfo) {
   extraparseinfo->setdebugline = false;
   extraparseinfo->isend = false;
-  if (line[0] == '*')  // Ignore comments
-    return true;
+  //// Ignore comments
+  if (line[0] == '*') return true;
 
-  char sym[11], op[5];
-  word val;
-  int opidx;
-  word A, I, F, C;
-  bool parseLOC = !isspace(line[0]);
-  if (parseLOC && !parsesym(&line, sym))
-    return false;
+  //// Parse LOC field
+  bool hasLOC = !isspace(line[0]);
+  char sym[11];
+  if (hasLOC) {
+    if (!parsesym(&line, sym)) return false;
+    if (*line != '\t') return false;
+    line++;  // Skip a \t
 
-  // Annotate local symbol with its current instance number.
-  // Note the new symbol has a # which is non-alphanumeric, hence
-  // it will not collide with a user-defined symbol.
-  if (isdigit(sym[0]) && sym[1] == 'H' && sym[2] == '\0') {
-    int i = sym[0]-'0';
-    if (ps->localsymcounts[i] >= 99)
-      return false;
-    sym[2] = '#';
-    sym[3] = '0' + (ps->localsymcounts[i] / 10);
-    sym[4] = '0' + (ps->localsymcounts[i] % 10);
-    ps->localsymcounts[i]++;
-    sym[5] = '\0';
+    //// Is LOC a local symbol?
+    //// Internally, the kth instance of nH is mapped to the symbol
+    //// "nH#k".  The presence of the non-alphanumeric symbol '#'
+    //// prevents it from colliding with a user-defined symbol.
+    if (isdigit(sym[0]) && sym[1] == 'H' && sym[2] == '\0') {
+      int i = sym[0]-'0';
+      if (ps->localsymcounts[i] >= 99)
+	return false;
+      sym[2] = '#';
+      sym[3] = '0' + (ps->localsymcounts[i] / 10);
+      sym[4] = '0' + (ps->localsymcounts[i] % 10);
+      sym[5] = '\0';
+      ps->localsymcounts[i]++;
+    }
   }
+  else line++;  // Skip a \t
 
-  if (!parseOP(&line, op, &opidx))
-    return false;
-  if (opidx >= 0) {
-    C = POS(OPCODES[opidx]);
-    F = POS(DEFAULTOPFIELDS[opidx]);
-  }
 
-  if (parseLOC && !strcmp(op, "EQU")) {
-    if (!parseW(&line, &val, ps))
-      return false;
+  //// Parse OP field
+
+  if (!strncmp(line, "EQU\t", 4)) {
+    if (!hasLOC) return false;
+    line += 4;
+    word val;
+    if (!parseW(&line, &val, ps)) return false;
     addsym(sym, val, ps);
   }
-  else if (!strcmp(op, "ORIG")) {
-    if (parseLOC)
-      addsym(sym, POS(ps->star), ps);
-    if (!parseW(&line, &val, ps))
-      return false;
-    if (INT(val) < 0 || INT(val) >= 4000)
-      return false;
+
+  else if (!strncmp(line, "ORIG\t", 5)) {
+    line += 5;
+    if (hasLOC) addsym(sym, POS(ps->star), ps);
+    word val;
+    if (!parseW(&line, &val, ps)) return false;
+    if (INT(val) < 0 || INT(val) >= 4000) return false;
     ps->star = INT(val);
   }
-  else if (!strcmp(op, "CON")) {
-    if (parseLOC)
-      addsym(sym, POS(ps->star), ps);
-    if (!parseW(&line, &val, ps))
-      return false;
+
+  else if (!strncmp(line, "CON\t", 4)) {
+    line += 4;
+    if (hasLOC) addsym(sym, POS(ps->star), ps);
+    word val;
+    if (!parseW(&line, &val, ps)) return false;
     mix->mem[ps->star++] = val;
     extraparseinfo->setdebugline = true;
   }
-  else if (!strcmp(op, "ALF")) {
-    if (parseLOC)
-      addsym(sym, POS(ps->star), ps);
+
+  else if (!strncmp(line, "ALF\t", 4)) {
+    line += 4;
+    if (hasLOC) addsym(sym, POS(ps->star), ps);
     char alf[5];
-    if (!parseALF(&line, alf, ps))
-      return false;
-    for (int i = 0; i < 5; i++)
-      alf[i] = mixord(alf[i]);
+    if (!parseALF(&line, alf, ps)) return false;
+    for (int i = 0; i < 5; i++) alf[i] = mixord(alf[i]);
     mix->mem[ps->star++] = WORD(true, alf[0], alf[1], alf[2], alf[3], alf[4]);
     extraparseinfo->setdebugline = true;
   }
-  else if (!strcmp(op, "END")) {
-    // Handle future references
+
+  else if (!strncmp(line, "END\t", 4)) {
+    line += 4;
+    //// Handle future references
     for (int i = 0; i < ps->numfuturerefs; i++) {
       futureref *fr = &ps->futurerefs[i];
+      word val;
       if (!fr->which && lookupsym(fr->sym, &val, ps)) {
 	fr->resolved = true;
 	word instr = mix->mem[fr->addr];
@@ -459,7 +453,7 @@ bool parseline(char *line, parsestate *ps, mix *mix, extraparseinfo *extraparsei
       }
     }
 
-    // Handle literal constants and undefined symbols
+    //// Handle literal constants and undefined symbols
     for (int i = 0; i < ps->numfuturerefs; i++) {
       futureref *fr = &ps->futurerefs[i];
       word val = fr->which ? fr->literal : POS(0);
@@ -482,25 +476,32 @@ bool parseline(char *line, parsestate *ps, mix *mix, extraparseinfo *extraparsei
       }
     }
 
-    if (parseLOC)
-      addsym(sym, POS(ps->star), ps);
+    if (hasLOC) addsym(sym, POS(ps->star), ps);
 
-    if (!parseW(&line, &val, ps))
-      return false;
-    if (INT(val) < 0 || INT(val) >= 4000)
-      return false;
+    word val;
+    if (!parseW(&line, &val, ps)) return false;
+    if (INT(val) < 0 || INT(val) >= 4000) return false;
     mix->PC = INT(val);
     extraparseinfo->isend = true;
   }
-  else {  // Parse a normal MIX operation
-    if (parseLOC)
-      addsym(sym, POS(ps->star), ps);
+
+  //// Treat the OP field as a MIX operator
+  else {
+    word A = 0;
+    byte I = 0, C = 0, F = 0;
+    if (!parseoperator(&line, &C, &F)) return false;
+    if (hasLOC) addsym(sym, POS(ps->star), ps);
+    if (*line == '\n') goto skip;
+    line++;  // Skip the tab
     if (!parseA(&line, &A, ps)) return false;
+    if (*line == '\n') goto skip;
     if (!parseI(&line, &I, ps)) return false;
+    if (*line == '\n') goto skip;
     if (!parseF(&line, &F, ps)) return false;
-    if (INT(I) < 0 || INT(I) > 6) return false;
-    if (INT(F) < 0 || INT(F) >= 64) return false;
-    mix->mem[ps->star++] = INSTR(ADDR(INT(A)), (byte)I, INT(F), INT(C));
+skip:
+    if (I < 0 || I > 6) return false;
+    if (F < 0 || F >= 64) return false;
+    mix->mem[ps->star++] = INSTR(ADDR(INT(A)), I, F, C);
     extraparseinfo->setdebugline = true;
   }
 

@@ -15,9 +15,9 @@ CARDREAD	EQU	16
 PRINTER	EQU	18
 FIVEK	CON	5000
 HALF7500	CON	3750
-EOF	ALF  .....
+EOF	ALF	.....
 BEGIN	ENT1	-16
-1H 	INC1	16
+1H	INC1	16
 	IN	0,1(CARDREAD)	Load the MIXAL program to be simulated from card deck
 	JBUS	*(CARDREAD)
 	LDA	EOF
@@ -39,7 +39,7 @@ BEGIN	ENT1	-16
 	ENT4	0
 * 1.4.3.1-6: update IO timers
 * (and only begin IO transmission when half the time has elapsed, 1.4.3.1-7)
-CYCLE   LDA	OPTABLE,4(4:4)	Get execution time of previous instruction.
+CYCLE	LDA	OPTABLE,4(4:4)	Get execution time of previous instruction.
 	STA	7F(0:2)
 	STA	8F(0:2)
 DECIN	LDA	INTIME
@@ -343,7 +343,7 @@ STORE	JMP	FCHECK
 JRED	LDA	=*+16=		Unfortunately =JRED1= isn't actually valid MIXAL.
 	STA	4H(0:2)		JRED uses the same field checking code as JBUS,
 	STA	5H(0:2)		  but after that it jumps to different code.
-JBUS 	DEC3	CARDREAD	We are updating rI3, but we know that the
+JBUS	DEC3	CARDREAD	We are updating rI3, but we know that the
 	J3Z	2F		  remaining commands in this cycle won't use it.
 	DEC3	2
 	J3Z	3F
@@ -494,17 +494,17 @@ MEMERROR	ENT4	5
 7H	OUT	*+3(PRINTER)
 	JBUS	*(PRINTER)
 	HLT
-8H	ALF  ERROR
-	ALF   (CHE
-	ALF  CK rI
-	ALF  4 FOR
-	ALF   CODE
-	ALF  : 1=F
-	ALF  ,2=OP
-	ALF  ,3=AD
-	ALF  DR,4=
-	ALF  INDEX
-	ALF  ,5=ME    
-	ALF  M)   
+8H	ALF	ERROR
+	ALF	 (CHE
+	ALF	CK rI
+	ALF	4 FOR
+	ALF	 CODE
+	ALF	: 1=F
+	ALF	,2=OP
+	ALF	,3=AD
+	ALF	DR,4=
+	ALF	INDEX
+	ALF	,5=ME
+	ALF	M)   
 	ORIG	8B+24
 	END	BEGIN
