@@ -111,8 +111,8 @@ bool isdata(char *line) {
   // Go past the whitespace
   for (; *s == ' ' || *s == '\t'; s++);
   // We are at the operation field
-  if (s[0] == 'C' && s[1] == 'O' && s[2] == 'N') return true;
-  if (s[0] == 'A' && s[1] == 'L' && s[2] == 'F') return true;
+  if (s[0] == 'C' && s[1] == 'O' && s[2] == 'N' && s[3] == '\t') return true;
+  if (s[0] == 'A' && s[1] == 'L' && s[2] == 'F' && s[3] == '\t') return true;
   return false;
 }
 
@@ -160,7 +160,6 @@ void analyzeprogram(mmmstate *mmm, int startaddr, int endaddr) {
   int curid = 0;
   byte C, F; int A;
   for (int i = Start; i <= End; i++) {
-    if (isdata(mmm->debuglines[i])) continue;
     if (i == Start) {     // Start has exactly one edge: to startaddr
       C = JMP; F = 0; A = startaddr;
     }
@@ -168,6 +167,7 @@ void analyzeprogram(mmmstate *mmm, int startaddr, int endaddr) {
       C = JMP; F = 0; A = Start;
     }
     else {
+      if (isdata(mmm->debuglines[i])) continue;
       C = getC(mmm->mix.mem[i]);
       F = getF(mmm->mix.mem[i]);
       A = INTA(getA(mmm->mix.mem[i]));

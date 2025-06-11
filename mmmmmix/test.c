@@ -231,6 +231,12 @@ void testemulator() {
   assert(mix.A == WORD(false, 30, 30, 31, 32, 39));
   assert(mix.X == WORD( true, 37, 37, 37, 30, 30));
 
+  // TEST: xor
+  mix.A = WORD(false, 0, 10, 20, 30, 40);
+  w = WORD(true, 63, 32, 16, 8, 4);
+  xor(&mix.A, w);
+  assert(mix.A = WORD(false, 63, 42, 4, 22, 44));
+
   // TEST: shifting words
   mix.A = WORD(true, 1, 2, 3, 4, 5);
   shiftleftword(&mix.A, 0);

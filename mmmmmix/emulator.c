@@ -1,9 +1,9 @@
 #include "emulator.h"
 
 // Cycle count of each instruction, from TAOCP Section 1.3.1, Table 1.
-// Note that the cycle count of MOVE is variable.
+// Note that the cycle count of MOVE and SPEC depends on the F field.
 // (So are IOC/IN/OUT, but these instructions will be specially handled.)
-static int instrtimes[64] = { 1, 2, 2, 10, 12, 10, 2, -1,
+static int instrtimes[64] = { 1, 2, 2, 10, 12, -1, 2, -1,
 		              2, 2, 2,  2,  2,  2, 2,  2,
 		              2, 2, 2,  2,  2,  2, 2,  2,
 		              2, 2, 2,  2,  2,  2, 2,  2,
@@ -63,7 +63,12 @@ byte getC(word instr) { return instr & ONES(6); }
 word getM(word instr, mix *mix);
 
 int getinstrtime(int C, int F) {
-  if (C == 7) return 1 + 2*F;
+  if (C == 5) {
+    if (F == 0 || F == 1) return 10;
+    else if (F == 2) return 0;
+    else if (F == 5) return 2;
+  }
+  else if (C == 7) return 1 + 2*F;
   return instrtimes[C];
 }
 
@@ -330,6 +335,12 @@ void numtochar(word *destA, word *destX) {
   byte b10 = 30 + x;
   *destA = WORD(SIGN(*destA), b1, b2, b3, b4, b5);
   *destX = WORD(SIGN(*destX), b6, b7, b8, b9, b10);
+}
+
+// Set destA to the bitwise XOR of destA of w, leaving the sign unchanged.
+void xor(word *destA, word w) {
+  bool sign = SIGN(*destA);
+  *destA = WITHSIGN(*destA ^ w, sign);
 }
 
 // Convert a MIX character code to the actual character.
@@ -731,13 +742,18 @@ if (!checkfieldspec(F)) {				\
   }
 
   else if (C == SPEC) {
-    if (F == 0)                                 // NUM
+    if (F == 0) {                               // NUM
+      instrtime = 10;
       wordtonum(&mix->A, &mix->X);
+    }
 
-    else if (F == 1)                            // CHAR
+    else if (F == 1) {                          // CHAR
+      instrtime = 10;
       numtochar(&mix->A, &mix->X);
+    }
 
     else if (F == 2) {                          // HLT
+      instrtime = 0;
       // Complete remaining IO tasks before returning
       for (int i = 0; i < 21; i++) {
 	IOtask *iotask = &mix->iotasks[i];
@@ -748,6 +764,12 @@ if (!checkfieldspec(F)) {				\
       }
       mix->exitcode = INT(M);
       _STOP("")
+    }
+
+    else if (F == 5) {                          // XOR
+      instrtime = 2;
+      _CHECKADDR(INT(M))
+      xor(&mix->A, V());
     }
 
     else

@@ -1,0 +1,1483 @@
+The same introductory remarks as taocp-ch1-solutions.txt apply.
+
+
+
+
+
+2.2.1-8 ---------------------
+
+If n>=5, then any permutation starting with n13... works. If n1 can be
+output from the deque, that means right before n is output (when all n
+elements are in the deque), either
+
+1. n and 1 appear at both ends of the deque, or
+2. n1.. in the left end or ..1n in the right end.
+
+Thus the only possible arrangements are
+123..n   n..321   n123..   ..321n,
+and in each case 3 is stuck in the middle after n1 is output.
+
+
+
+
+
+2.2.2-9 ---------------------
+
+Let xk be the stack of the kth insertion. The basic observation is
+that the number of moves caused by this insertion is equal to the
+number of previous insertion whose stack is > xk.
+
+Let Xk be the random variable denoting the number of moves caused by
+the kth insertion. We have
+
+E(total moves)
+= sum(1km) E(Xk)
+= sum(1km) sum(1in) E(Xk|k=i) P(k=i)
+= sum(1km) sum(1in) [(n-i)/n * (k-1)] 1/n
+                     ^ expected number of values > i if sampled uniformly k times from 1 to n
+= 1/n [sum(1km) (k-1)] [sum(1in) 1-i/n]
+= 1/n (m 2) (n - 1/n * n(n+1)/2)
+= 1/2 (1-1/n) (m 2).
+
+
+
+
+
+2.2.2-10 --------------------
+
+The method of 2.2.2-9 is easily adapted.
+
+
+
+
+
+2.2.2-11 --------------------
+
+Similar to 2.2.2-9,
+
+E(total moves)
+= sum(1km) E(Xk)
+= sum(1km) sum(1in) E(Xk|k=i) P(k=i)
+= sum(1km) sum(1in) sum(1lk) E(Xk|k=i, lth occurrence of i) P(lth occurrence of i) P(k=i)
+                                                                                   ^ 1/n
+
+We have
+
+P(lth occurrence of i)
+= P(l-1 occurrences of i in x1,...,x(k-1))
+= (k-1 l-1) (n-1)^(k-l) / n^(k-1)
+
+and
+
+E(Xk|k=i, lth occurrence of i)
+= (n-i)(k-t)/(n-1) if t>T, 0 otherwise.
+
+Plugging these in, the inner most sum
+
+sum(1lk) E(Xk|k=i, lth occurrence of i) P(lth occurrence of i)
+
+evaluates to
+
+0 if k=1,
+
+(n-i)/n^(k-1) sum(t+1 l k) (k-1 l-1) (k-l) (n-1)^(k-l-1)
+= (n-i)/n^(k-1) sum(t+1 l k) (k-2 l-1) (k-1) (n-1)^(k-2-(l-1))
+= (n-i)(k-1)/n^(k-1) sum(t l k-1) (k-2 l) (n-1)^(k-2-l)
+otherwise.
+
+Denote the final sum by A(k-2); it represents the number of
+(k-2)-tuples of {1,...,n} with >= t occurrences of a given number;
+A1=0 as well. Apparently there is no simpler closed form.
+
+Finally, the big sum evaluates to
+
+1/n sum(1in) sum(2km) (n-i)(k-1)/n^(k-1) A(k-2)
+= [sum(1in) (1-i/n)] [sum(2km) A(k-2) k-1 / n^(k-1)].
+= (n-1)/2 [sum(2km) A(k-2) k-1 / n^(k-1)].
+
+In the special case t=0, we have A(k-2)=n^(k-2), thus the expressionq
+evaluates to
+
+(n-1)/2 sum(2km) k-1 / n
+= 1/2(1-1/n) sum(1 k m-1) k
+= 1/2(1-1/n) (m 2),
+
+which is the solution to 2.2.2-9.
+
+
+
+
+
+2.2.2-12 --------------------
+
+If n is even, the expectation is equal to 2^-n times
+
+n/2 (n n/2) + 2 sum(0 k n/2-1) (n-k)(n k)
+= n/2 (n n/2) + 2 sum(0 k n/2-1) n(n-1 k)   (recall (n n-k) = n/(n-k) (n-1 n-k-1))
+= n/2 (n n/2) + 2n sum(0 k n/2-1) (n-1 k)   (sum over left half of (n-1)th row of Pascal's triangle)
+= n/2 (n n/2) + 2^(n-1) n.
+= n (n-1 n/2-1) + 2^(n-1) n.
+= n (n-1 n/2) + 2^(n-1) n.
+
+If n is odd, the expectation is equal to 2^-n times
+
+2 sum(0 k (n-1)/2) (n-k) (n k)
+= 2n sum(0 k (n-1)/2) (n-1 k)  (sum over left half of (n-1)th row, including middle term)
+= 2n 1/2 [2^(n-1) + (n-1 (n-1)/2)]
+= n 2^(n-1) + n (n-1 (n-1)/2)
+
+In general, the answer is
+
+n/2 + n 2^-n (n-1 floor(n/2)),
+
+the difference from n/2 grows with n, since (n n/2) ~ sqrt(2) 2^n/sqrt(pi n).
+
+
+
+
+
+2.2.2-16 --------------------
+
+I was initially tempted to say yes: perhaps we could use the circular
+queue idea. However, there are complications with the idea. Suppose at
+some point, a certain amount of memory is allocated for the queue
+(which implies an allocation of memory to the other structure, say a
+stack). If the stack is full but the F and R pointers of the queue are
+well off the end of the list, then we would be wasting a lot of space:
+
+[  F...R               ][......................]
+
+One might say, we could dynamically adjust the size of the queue so
+that this doesn't happen. But that leads to more complications: if the
+stack is always empty, do we let the queue grow to the right (thus
+leaving less room for the stack to grow in the future), or do we force
+it to wrap around at some point? Without an idea of the distribution
+of insertions and deletions, it is hard to decide on an efficient
+allocation scheme a priori.
+
+
+
+
+
+2.2.2-18 --------------------
+
+The idea is to spread out the cost of each expensive repacking
+operation across the subsequent run of insertions and deletions. Let
+bji denotes the fraction of memory used by stack i during the jth
+repacking operation; thus if the repacking occurred on move k, then ak
+= sum(i)bji. After the repacking, stack i is allowed to grow by
+
+A(1-ak)N/n + (1-A)(1-ak)N * bji/ak    (where A=0.1 in Knuth's description of Algorithm R).
+
+Therefore, the minimum number of moves to the next repacking is equal
+to the minimum of these quantities, which is at least
+A(1-ak)N/n. Thus, the cost of the jth repacking operation (which is C
+ak N), is at most
+
+C/A n sum(k l k'-1) al N / (1-al)N,
+
+where the jth and (j+1)th repackings occur at moves k and k'. Summing
+over all repackings, and taking into account the cost of each
+insertion/deletion, we get the desired bound
+
+O(m + n sum(1km) ai/(1-ai)).
+
+(Pedantry: the repacking operation also includes costs from iterating
+through the stacks to find which ones to move upward/downward, and
+this contributes at most O(nm), which can be subsumed in the sum.)
+
+
+
+
+
+2.2.3-21 --------------------
+
+The situation is easy to visualise if we draw an arrow for each
+relation j<k (repeated relations means multiple arrows connecting two
+nodes): topological sort repeatedly removes nodes with no arrows
+pointing to it.
+
+Repeated relations are fine, they just take longer to process. However
+if there is a loop, then every node has an arrow pointing to it and
+the algorithm can't continue.
+
+
+
+
+
+2.2.4-9 ---------------------
+
+A general observation: if P and Q point inside the same circular list,
+then Algorithm A will behave as intended as long as P doesn't fall
+behind Q:
+
+- Each new term that is added, is added behind Q and thus behind P. So
+  as we continuously advance P, it never "sees" the new terms and so
+  they are never processed more than once.
+
+- Addition of coefficients may happen at P, but we would advance P
+  immediately anyway so we never read from the "dirty" node.
+
+- Similarly, removal of zero terms works fine if P is *ahead* of Q by
+  at least one node.
+
+With these remarks, we can deduce:
+
+P=Q in Algorithm A is ok. Note that no zero terms are created.
+
+P=M in Algorithm M is ok because that list is never modified.
+
+
+P=Q in Algorithm M results in t*poly(Q) getting added to poly(Q) for
+each term t in poly(M), because each term in t*poly(Q) is >= some term
+in poly(Q), thus each term is processed exactly once. Thus if
+poly(M)=t1+...+tn then the effective result is the series of
+assignments
+
+poly(Q) <- poly(Q) + t1*poly(Q),
+poly(Q) <- poly(Q) + t2*poly(Q),
+...
+poly(Q) <- poly(Q) + tn*poly(Q),
+
+or equivalently
+
+poly(Q) <- (1+t1)...(1+tn) poly(Q).
+
+
+Q=M in Algorithm M is ok, because for each term t in poly(M), every
+term of t*poly(P) is > t, so they all get added behind M. The
+exception is when poly(P) contains a constant term, but the constant
+term is already the last node in P, so we don't ever read from the
+dirty node.
+
+
+
+
+
+2.2.4-10,11 -----------------
+
+My implementation below, which takes (24p+27)u where p is the number
+of terms in poly(P). Not quite as good as Knuth's (21p+31)u but still
+an improvement over (27p+13)u with Program A.
+
+* Steps:
+* 1. Set P1<-P, Q0<=AVAIL, COEF(Q0)<-COEF(P1), ABC(Q0)<-ABC(P1), Q<-Q0.
+* 2. P1<-LINK(P1). If P1=sentinel, set LINK(Q)<-Q0 and terminate.
+* 3. Set Q1<-Q, Q<=AVAIL, COEF(Q)<-COEF(P1), ABC(Q)<-ABC(P),
+*    LINK(Q1)<-Q, and goto 2.
+* Registers:
+* rI2=Q0, rI3=Q, rI4=Q1, rI5=P1, rI6=tmp
+COPY	STJ	9F		2
+	ENT5	0,1		1	P1 <- P.
+	LD2	AVAIL		2	Q0 <= AVAIL.
+	J2Z	OVERFLOW	1
+	LD6	1,2(LINK)	2
+	ST6	AVAIL		2
+	LDA	0,5		2	COEF(Q0) <- COEF(P1).
+	STA	0,2		2
+	LDA	1,5(ABC)	2	ABC(Q0) <- ABC(PQ).
+	STA	1,2(ABC)	2
+	ENT3	0,2		1	Q <- Q0.
+2H	LD5	1,5(LINK)	2(p+1)	P1 <- LINK(P1).
+	LDA	1,5(ABC)	2(p+1)
+	JANN	3F		p+1	P1 = sentinel?
+	ST2	1,3(LINK)	2	LINK(Q) <- Q0.
+9H	JMP	*		1
+3H	ENT4	0,3		p	Q1 <- Q.
+	LD3	AVAIL		2p	Q <= AVAIL.
+	J3Z	OVERFLOW	p
+	LD6	1,3(LINK)	2p
+	ST6	AVAIL		2p
+	LDA	0,5		2p	COEF(Q) <- COEF(P1).
+	STA	0,3		2p
+	LDA	1,5(ABC)	2p	ABC(Q) <- ABC(P1).
+	STA	1,3(ABC)	2p
+	ST3	1,4(LINK)	2p	LINK(Q1) <- Q.
+	JMP	2B		p
+
+
+
+
+
+2.2.6-15 --------------------
+
+In hindsight I made a poor choice of register assignments, because I
+was left with no index registers to temporarily store PTR[J]. This
+made S6 and S8 particularly awkward, as I had to resort to
+self-modifying instruction shenanigans, e.g. storing PTR[J] into rX
+and then storing rX into the next instruction's A-field which loads
+ROW(PTR[J]).
+
+If I were to rewrite this, I would store the row index I in memory
+because it is rarely needed; thus freeing up rI1. (This was
+essentially what Knuth did.)
+
+* PIVOTSTEP
+* Input: rI5=PIVOT. It is assumed that the BASECOL/BASEROW/PTR tables exist.
+* Registers: rI1=I,X, rI2=J, rI3=P0, rI4=Q0, rI5=P1, rI6=P
+ROW	EQU	0:3
+UP	EQU	4:5
+COL	EQU	0:3
+LEFT	EQU	4:5
+I0	CON	0
+J0	CON	0
+ALPHA	CON	0
+PIVOTSTEP	STJ	9F
+* rI5,rI6 are used as temp registers in the initialization step
+S1 	LD6	0,5(ROW)	ROW(PIVOT)
+	ST6	I0		  -> I0.
+	LD3	BASEROW,6	P0 <- LOC(BASEROW[I0]).
+	LD6	1,5(COL)	COL(PIVOT)
+	ST6	J0		  -> J0.
+	LD4	BASECOL,6	Q0 <- LOC(BASECOL[J0]).
+	LDA	2,5		VAL(PIVOT)
+	STA	ALPHA	  	  -> ALPHA.
+	ENTA	=1.0=		1.0
+	STA	2,5		  -> VAL(PIVOT).
+S2	LD3	1,3(LEFT)	P0 <- LEFT(P0).
+	LD2	1,3(COL)	J <- COL(P0).
+	J2N	S3		J < 0?
+	LDA	BASECOL,2	LOC(BASECOL[J])
+	STA	PTR,2		  -> PTR[J].
+	LDA	2,3		VAL(P0)
+	FDIV	ALPHA	  	  / ALPHA
+	STA	2,3		  -> VAL(P0).
+	JMP	S2
+S3	LD4	0,4(UP)		Q0 <- UP(Q0).
+	LD1	0,4(ROW)	I <- ROW(Q0).
+9H	J1N	*		I < 0? (then terminate)
+	CMP1	I0		I = I0? (then repeat S3)
+	JE	S3
+	LD6	BASEROW,1	P <- LOC(BASEROW[I]).
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+S4	LD3	1,3(LEFT)	P0 <- LEFT(P0).
+	LD2	1,3(COL)	J <- COL(P0).
+	J2NN	1F		J < 0?
+	LDAN	2,4		- VAL(Q0)
+	FDIV	ALPHA	  	  / ALPHA
+	STA	2,4		  -> VAL(Q0).
+	JMP	S3
+1H	CMP2	J0		J = J0? (then repeat S4)
+	JE	S4
+S5	LDA	1,5(COL)	Decrement COL(P1)
+	DECA	0,2		  by J.
+	JAZ	S7		If we matched pivot row's column, then pivot.
+	JANP	S6		If we overshot, then insert.
+	ENT6	0,5		Otherwise, we advance our column. P <- P1.
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+	JMP	S5
+S6	LDX	PTR,2		rX <- PTR[J].
+	STX	2F(0:2)
+	STX	*+1(0:2)
+	LDX	*(UP)		rX <- UP(PTR[J])
+	STX	*+1(0:2)
+	LDA	*(ROW)		rA <- ROW(UP(PTR[J])).
+	DECA	0,1
+	JANP	*+3		ROW(UP(PTR[J])) > I?
+0H	STX	PTR,2		PTR[J] <- UP(PTR[J]).
+	JMP	S6
+	ST1	0F(0:2)		Temporary make rI1 point to new node X <= AVAIL.
+	ST1	1F(0:2)
+	LD1	AVAIL
+	LDA	0,1(UP)		UP(AVAIL) points to the next node in the allocation list.
+	STA	AVAIL
+	ENTA	=0.0=		0.0
+	STA	2,1		  -> VAL(X).
+0H	ENTA	*
+	STA	0,1(ROW)	ROW(X) <- I.
+	ST2	1,1(COL)	COL(X) <- J.
+	ST5	1,1(LEFT)	LEFT(X) <- P1.
+	STX	0,1(UP)		UP(X) <- UP(PTR[J]).
+	ST1	1,6(LEFT)	LEFT(P) <- X.
+2H	ST1	*(UP)		UP(PTR[J]) <- X.
+	ENT5	0,1		P1 <- X.
+1H	ENT1	*		Restore I1.
+S7	LDAN	2,3		- VAL(P0)
+	FMUL	2,4		  * VAL(Q0)
+	FADD	2,5		  + VAL(P1)
+	STA	2,5		  -> VAL(P1).
+	JAZ	S8		VAL(P1) = 0?
+	ST5	PTR,2		PTR[J] <- P1.
+	ENT6	0,5		P <- P1.
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+	JMP	S4
+S8	LDA	PTR,2		rA <- PTR[J].
+	STA	*+1(0:2)
+	LDA	*(UP)		rA <- UP(PTR[J]).
+	STA	0F(0:2)
+	DECA	0,5		rA <- rA - P1.
+	JAZ	*+4		UP(PTR[J]) = P1?
+0H	ENTA	*		UP(PTR[J])
+	STA	PTR,2		  -> PTR[J].
+	JMP	S8
+	LDX	0,5(UP)		UP(P1)
+	LDA	PTR,2
+	STA	*+1(0:2)
+	STX	*(UP)		  -> UP(PTR[J]).
+	LDA	1,5(LEFT)	LEFT(P1)
+	STA	1,6(LEFT)	  -> LEFT(P).
+	LDA	AVAIL
+	STA	0,5(UP)
+	ST5	AVAIL		AVAIL <= P1.
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+	JMP	S4
+
+
+
+
+
+2.2.6-16 --------------------
+
+The following algorithm copies the nodes of the original matrix and
+populates the tables NEWROW and NEWCOL, which play the same role as
+BASEROW and BASECOL. An auxiliary table PTR is also utilised. Suppose
+the size of the matrix is M x N.
+
+C1. [Initialize list heads]
+    For 1<=I<=M, pop X<=AVAIL and set COL(X)<-(-1), NEWROW[I]<-X.
+    For 1<=J<=N, pop X<=AVAIL and set ROW(X)<-(-1), NEWCOL[J]<-X, PTR[J]<-X.
+    Set I=M.
+
+C2. [Initialize row]
+    Set P<-LEFT(BASEROW[I]), Y0<-NEWROW[I].
+
+C3. [Check end of row]
+    If P!=BASEROW[I], then go to step C4.
+    Else, set LEFT[Y0]<-NEWROW[I]. If I=1 then go to C5, else
+    decrement I and go back to C2.
+
+C4. [Traverse row]
+    Set X<-NODE(P), I<-ROW(X), J<-COL(X).
+    Then pop Y<=AVAIL and set ROW(Y)<-I, COL(Y)<-J,
+    LEFT(Y0)<-Y, Y0<-Y, UP(PTR[J])<-Y, PTR[J]<-Y.
+    Go back to C3.
+
+C5. [Update final UP links]
+    For 1<=J<=N, set UP(PTR[J])<-NEWCOL[J]. Then terminate.
+
+
+
+
+
+2.2.6-17 --------------------
+
+The structure is quite similar to 2.2.6-16 in my use of Y0 and PTR.
+
+The following algorithm multiples two matrices A, B with list heads
+specified by AROW/ACOL and BROW/BCOL. It creates a new matrix C and
+populates the newly created list heads in tables CROW/CCOL. An
+auxiliary table PTR is also utilised. Suppose A is M x N and B is N x
+K.
+
+M1. [Initialize list heads]
+    For 1<=I<=M, pop X<=AVAIL and set COL(X)<-(-1), CROW[I]<-X.
+    For 1<=J<=K, pop X<=AVAIL and set ROW(X)<-(-1), CCOL[J]<-X, PTR[J]<-X.
+    Set I=M.
+
+M2. [Initialize row]
+    If I<1, then skip to M8. Otherwise, set Y0<-NEWROW[I], J<-K.
+
+M3. [Initialize column]
+    If J<1, then skip to M7. Otherwise, set P<-LEFT(AROW[I]),
+    Q<-UP(BCOL[J]), S<-0.
+
+M4. [Find matching pair]
+    If P=AROW[I], goto step M6.
+    Otherwise, repeatedly set Q<-UP(Q) zero or more times until
+    ROW(Q)<=COL(P).
+
+M5. [Add to sum]
+    If ROW(Q)=COL(P), set S<-S+VAL(P)*VAL(Q).
+    In all cases, set P<-LEFT(P) and repeat M4.
+
+M6. [Create new node]
+    If S!=0, pop Y<=AVAIL and set ROW(Y)<-I, COL(Y)<-J,
+    LEFT(Y0)<-Y, Y0<-Y, UP(PTR[J])<-Y, PTR[J]<-Y.
+    In all cases, decrement J and go back to M3.
+
+M7. [Update final LEFT link in row]
+    Set LEFT(Y0)<-CROW[I], decrement I and go back to M2.
+
+M8. [Update final UP links in columns]
+    For 1<=J<=K, set UP(PTR[J])<-CCOL[J]. Then terminate.
+
+
+
+
+
+2.3.1-19 --------------------
+
+We can find P$ using only right threads:
+
+R1. Set Q<-P, then set Q<-RLINK(Q) zero or more times until RTAG(Q)=1.
+    Then set Q<-RLINK(Q).
+
+R2. If LLINK(Q)=P, then return the inorder successor of Q.
+    Otherwise, P is a right child. Set Q<-LLINK(Q), and then
+    Q<-RLINK(Q) one or more times until RLINK(Q)=P, then return Q.
+
+(Conceptually, the path from the root to P has the form ...LR^n where
+n may be 0. Removing this suffix gives another node Q, which R1
+finds.)
+
+
+Symmetrically, we can find P$ using only left threads:
+
+L1. Set R<-P, then set R<-LLINK(R) zero or more times until LTAG(R)=1.
+    Then set R<-LLINK(R).
+
+L2. If RLINK(R)=P, then return R.
+    Otherwise, P is a left child. Set R<-RLINK(R), and then
+    R<-LLINK(R) one or more times until LLINK(R)=P, then return
+    the inorder successor of R.
+
+
+If the tree is threaded both ways, then we can actually run both
+algorithms simultaneously (by updating both Q and R in the same step)
+and then stop when one of them returns.
+
+
+
+
+
+2.3.1-29 --------------------
+
+For a vertex v in a tree, let PATH(v) denote the sequence of Ls and Rs
+from the root to v. I will show that PATH(P)=PATH(Q) at all times;
+this suffices to show equivalence of the copied tree since
+INFO(Q)<-INFO(P) in Step C3.
+
+The PATHs only change in step C5. The previous steps C2,C4 ensure that
+P and Q have the same set of direct children (as a subset of
+{L,R}). If P has a child, then P*,Q* are either both the left or both
+the right child of P,Q, and since PATH(P)=PATH(Q) by induction we have
+PATH(P*)=PATH(Q*).
+
+If P does not have a child, then
+P* = RLINK(*...*P) (k times), Q* = RLINK(*...*Q) (l times).
+
+In fact k = l, because the pairs *P,*Q; **P,**Q; ... all have the same
+set of direct children by induction. Since PATH(*...*P) = PATH(*...*Q)
+by induction, it follows that PATH(P*)=PATH(Q*).
+
+
+
+
+
+2.3.2-6 ---------------------
+
+Consider the nontrivial binary tree
+
+T =     u
+      /   \
+     v     w
+    / \   / \
+   A   B C   D
+
+where A,B,C,D are subtrees. Treating this as a tree, the corresponding
+representation is
+
+         u
+     	/
+       v
+     /   \
+    A     \
+   / \     w
+ ..   B   /
+     /   C
+   ..   / \
+      ..   D
+          /
+	..
+
+Let pre(A) be the preorder sequence of nodes in the subtree A using
+the first representation, and pre'(A) be the preorder sequence using
+the second representation. Define in(A), post(A) and its primed
+variants similarly. Then,
+
+pre(T)   = u v pre(A)  pre(B)  w pre(C)  pre(D)
+pre'(T)  = u v pre'(A) pre'(B) w pre'(C) pre'(D)
+
+in(T)    = in(A)   v       in(B) u       in(C)   w in(D)
+in'(T)   = in'(A)  in'(B)  v     in'(C)  in'(D)  w u
+
+post(T)  = post(A) post(B) v     post(C) post(D) w u
+post'(T) = (no simple description)
+
+By induction, it can thus be seen that pre(T) = pre'(T) and in'(T) =
+post(T).
+
+
+
+
+
+2.3.2-12 --------------------
+
+(For reference,
+D(u**v) = D(u) * (v * (u ** (v-1)))
+          + ((ln u) * D(v)) * (u ** v).)
+
+If INFO(Q1)!=0 and INFO(P2)!=0, then
+  set Q1 <- MULT(Q1,MULT(COPY(P2),
+                   TREE(**,P1,TREE(-,COPY(P2),TREE(1))))).
+
+If INFO(Q)!=0 and INFO(P1)!=1, then
+  set Q <- MULT(MULT(TREE(ln,COPY(P)),Q),
+                  TREE(**,COPY(P1),COPY(P2))).
+
+Then goto ADD.
+
+--
+
+This solution is different from Knuth's. It prevents redundant
+computation for the first term if v=0, and for the second term if u=1,
+whereas Knuth focuses on making the tree for u**(v-1) simple when v is
+a constant, by building TREE(**,u,INFO(v)-1) instead of
+TREE(**,u,TREE(-,v,TREE(1))).
+
+
+
+
+
+2.3.2-13 --------------------
+
+To adapt Algorithm 2.3.1C to a right-threaded bintree, I modified the
+following steps:
+
+C2'. [Anything to right?] If RLINK(P)!=NULL, set
+     R<=AVAIL, RLINK(R)<-RLINK(Q), RLINK(Q)<-R, RTAG(Q)<-0.
+     Else, set RTAG(Q)<-1.
+
+C4'. [Anything to left?] If LLINK(P)!=NULL, set
+     R<=AVAIL, LLINK(Q)<-R, RLINK(R)<-Q.
+
+C5'. [Advance.] If LLINK(P)!=NULL, then set P<-LLINK(P), Q<-LLINK(Q).
+     Else, repeat P<-RLINK(P), Q<-RLINK(Q) zero or more times until
+     RTAG(P)=1, then set P<-RLINK(P), Q<-RLINK(Q).
+
+
+I implemented it in 57 lines which is way too much (the problem asked
+to do it in 42). The main reason is because I handle the creation of
+the list head separately. Knuth cleverly circumvents this by creating
+a dummy node whose LLINK is the list head; thus the creation of the
+list head can be done in step C4.
+
+* Input:  rI1 = head of old bintree
+* Output: rI1 = head of new bintree
+* Registers used: rI1=Q, rI2=P, rI3=R
+LLINK	EQU	4:5
+RLINK	EQU	1:2
+RLINKT	EQU	0:2
+TYPE	EQU	3:3
+COPY	STJ	9F
+	ST1	HEAD		Save registers.
+	ST2	7F(0:2)
+	ENT2	0,1		P <- HEAD.
+	ST3	8F(0:2)
+	LD1	AVAIL		Q <= AVAIL.
+	J1Z	OVERFLOW
+	LDA	0,1(LLINK)
+	STA	AVAIL
+	STZ	0,1
+	ST1	0,1(RLINKT)	RLINK(Q) <- Q, RTAG(Q) <- 0.
+	JMP	C3
+C2	LDA	0,2(RLINKT)
+	JAN	1F		P has right child?
+	LD3	AVAIL		R <= AVAIL.
+	J3Z	OVERFLOW
+	LDA	0,3(LLINK)
+	STA	AVAIL
+	STZ	0,3
+	LDA	0,1(RLINKT)	RLINKT(Q)
+	STA	0,3(RLINKT)	  -> RLINKT(R).
+	ST3	0,1(RLINKT)	RLINK(Q) <- R, RTAG(Q) <- 0.
+	JMP	C3
+1H	LDAN	0,1		P does not have right child.
+	JANN	C3		Jump if RTAG(Q)=1 already.
+	STA	0,1		RTAG(Q) <- 1.
+C3	LDA	1,2		INFO(P)
+	STA	1,1		  -> INFO(Q).
+	LDA	0,2(TYPE)	TYPE(P)
+	STA	0,1(TYPE)	  -> TYPE(Q).
+C4	LDA	0,2(LLINK)
+	JAZ	1F		P has left child?
+	LD3	AVAIL		R <= AVAIL.
+	J3Z	OVERFLOW
+	LDA	0,3(LLINK)
+	STA	AVAIL
+	STZ	0,3
+	ST3	0,1(LLINK)	LLINK(Q) <- R.
+	ENN1	0,1
+	ST1	0,3(RLINKT)	RLINK(R) <- Q, RTAG(R) <- 1.
+	ENN1	0,1
+C5	LD1	0,1(LLINK)	Q <- LLINK(Q).
+	LD2	0,2(LLINK)	P <- LLINK(P).
+	JMP	C6
+1H	LDA	0,2
+	JANN	1F		RTAG(P) = 0?
+	LD1	0,1(RLINK)	Q <- RLINK(Q).
+	LD2	0,2(RLINK)	P <- RLINK(P).
+	JMP	1B
+1H	LD1	0,1(RLINK)	Q <- RLINK(Q).
+	LD2	0,2(RLINK)	P <- RLINK(P).
+C6	CMP2	HEAD		P = HEAD?
+	JNE	C2
+7H	ENT2	*
+8H	ENT3	*
+9H	JMP	*
+HEAD	CON	0
+
+
+
+
+
+2.3.2-18 --------------------
+
+We iterate through all the PARENT relations j -> k in descending order
+of j. The relations that have been processed so far induce a forest,
+and the LLINKs and RLINKs will reflect the preorder sequences of its
+top-level trees.
+
+Updating the LLINKs and RLINKs after each relation is somewhat
+straightforward. Suppose we are about to process j -> k; let F be the
+forest induced only by the edges already processed (so if j -> k is
+the first edge, then F consists of n singleton trees). We note two
+facts about F:
+
+1. j is the root of the top-level tree T containing it.
+   Otherwise, j,k would lie in the same top-level tree. But that means
+   j -> k must have been processed already.
+
+2. j is less than all the other children of k.
+   This is simply because we are traversing the relations j -> k in
+   descending order of j.
+
+Thus the situation could be visualised as follows:
+
+       ...
+        |
+     PARENT(k)
+    /   |      \
+  ..    k       ..
+  A   / | \      B
+     j  .. ..
+    / \   C
+  ..   ..
+     T
+
+Before j -> k is processed, the preorder sequence of the top-level
+tree containing k has the form
+
+... PARENT(k) A k C B ...
+
+After processing, it has the form
+
+... PARENT(k) A k T C B ...
+
+Thus, we only need to update 4 links: two between k and the first node
+in the preorder sequence of T (which is j), and two between C and the
+last node in the preorder sequence. Note that because the lists are
+circular, the last node is simply LLINK(j).
+
+
+
+
+
+2.3.2-20 --------------------
+
+The forward implication is obvious. As for the reverse, we first note
+that u and v are in the same tree of the forest, because both orders
+list out the trees from left to right.
+
+Now, recall that preorder of a tree A is:
+root(A), preorder(left(A)), preorder(right(A))
+
+Since u precedes v, there is some A such that u and v are in different
+components of this recursive definition, i.e.
+
+A1. u = root(A),  v in left(A);
+A2. u = root(A),  v in right(A); or
+A3. u in left(A), v in right(A).
+
+Similarly, since u follows v in postorder we have for some B,
+
+B1. v in left(B),  u = root(B);
+B2. v in right(B), u = root(B); or
+B3. v in left(B),  u in right(B).
+
+The only compatible pairs of scenarios are A1,B1 and A2,B2, which both
+imply u is a proper ancestor of v.
+
+
+
+
+
+2.3.3-18 --------------------
+
+The algorithm maintains a stack X of triples (j,RLINK(j),DEG(j)). Let
+TOP(X) denote the top element of the stack.
+
+P1. [Initialise]
+    Set J<-1 and goto step P3.
+
+P2. [Pop matching RLINKs]
+    If RLINK(TOP(X))=J, then pop (I,R,D)<=X and output (I,D), and then
+    increment DEG(TOP(X)). Repeat this step until RLINK(TOP(X))!=J or
+    X is empty.
+    If J=n+1, then we are done.
+
+P3. [Push new node]
+    Let R<-RLINK[J].
+    If R=0 and X is empty, then set R<-n+1.
+      (INFO1[J] is the last node in postorder.)
+    If R=0 and X is nonempty, then set R<-RLINK(TOP(X)).
+      (INFO1[J] is the last child of its family. It has to be popped before its parent.)
+    Then push X<=(INFO1[J],R,0).
+
+P4. [Next node]
+    Increment J and goto step P2.
+
+
+Running this algorithm on the data
+
+      j   1  2  3  4  5  6  7  8  9 10
+INFO1[j]  A  B  C  K  D  E  H  F  J  G
+RLINK[j]  5  3  0  0  0  8  0 10  0  0
+
+gives the execution trace
+
+ J   STACK AFTER P3              OUTPUT
+ 1   (A,5,0)
+ 2   (A,5,0) (B,3,0)
+ 3   (A,5,1) (C,5,0)             B,0
+ 4   (A,5,1) (C,5,0) (K,5,0)
+ 5   (D,11,0)                    K,0 C,1 A,2
+ 6   (D,11,0) (E,8,0)
+ 7   (D,11,0) (E,8,0) (H,8,0)
+ 8   (D,11,1) (F,10,0)           H,0 E,1
+ 9   (D,11,1) (F,10,0) (J,10,0)
+10   (D,11,2) (G,11,0)           J,0 F,1
+11   empty                       G,0 D,3
+
+
+Note that DEG(TOP(X)) is only incremented in step P2 after popping an
+element, e.g. after visiting a child of TOP(X). Thus the output
+degrees are correct.
+
+
+
+
+
+2.3.4.2-16 ------------------
+
+Recall how a balanced digraph can be formed from a game of solitaire
+clock: the vertices are the 13 piles, and there is an edge i->j if a
+face j card is in pile i. Given some initial configuration, there is a
+walk (starting from pile 13) that is completely dictated by the rules
+of the game. The game is won iff the walk forms an Eulerian trail,
+which is equivalent to the set of last exits from all piles != 13
+forming an oriented tree. Eulerian trails are cycles, so the game
+would always end at pile 13.
+
+Conversely if the set of last exits don't form an oriented tree
+(i.e. the game is lost), then the game also ends at pile 13; this
+observation is important for the next problem. Suppose for a
+contradiction that it ends at pile i != 13. This means that all edges
+out of i are already taken, in particular the last exit from i. But
+since the graph is balanced, all edges going into i must have been
+already taken when the last exit is taken. Thus, it is impossible to
+revisit i afterwards.
+
+
+
+
+
+2.3.4.2-17 ------------------
+
+The clever solution is to observe that there is a correspondence
+between starting configurations (which can be thought of shuffles of a
+deck) and the sequence of cards picked (which can also be thought of
+as shuffles). For example, every winning configuration uniquely
+specifies a sequence of 52 cards. On the other hand, if the
+configuration causes the game to end with k cards left, then a partial
+sequence of 52-k cards is determined, and we can consider all
+configurations that determine this exact sequence of cards. There are
+exactly k! of them (because we can arbitrarily shuffle the k uncovered
+cards), and there are also k! ways to extend the partial sequence.
+
+Therefore, the probability of ending the game with k cards left is the
+probability that in a random shuffle, the kth last card is the last
+King appearing in that shuffle (the last card is always a King, as
+shown in the solution to the previous problem). This is equal to
+
+(51-k 3) 4! 48! / 52!.
+
+
+
+
+
+2.3.4.2-22 ------------------
+
+An interesting consequence of this formula is that in a connected,
+balanced, directed graph, the number of oriented subtrees rooted at Vi
+is the same regardless of Vi.
+
+I tried proving this more directly but my attempts didn't work out,
+which is weird because I thought it should be an easy result. All I
+know is that we can turn an oriented tree rooted at Vi into an
+oriented tree rooted at Vj, by adding some edge from Vi such that a
+oriented cycle is formed containing both Vi and Vj, and then removing
+the edge from Vj.
+
+
+
+
+
+2.3.4.2-26 ------------------
+
+This problem is actually not that hard if some reasonable-sounding
+results are taken by faith.
+
+a. (This was surprisingly annoying to prove.) Suppose xA = x for some
+nonzero x, and assume x has nonnegative components x1,...,xn. The sum
+of components of xA is x1+...+x(n-1), which forces xn=0. But
+regardless of x, there is some k (namely, the length of the shortest
+walk to End) such that the last component of xA^k is nonzero.
+
+Thus x must have some negative components --- we can reorder the
+components (as well as the rows and columns of A) such that x1,...,xk
+are nonnegative and -x(k+1),...,-xn are negative. Thus
+
+xA
+= (x1,...,xk,0...,0) A  -  (0...,0,x(k+1),...,xn) A
+= (a1,...,ak,....,an)   -  (b1,...,b(k+1),...,bn)
+= (x1,...,xk,....,xn).
+
+Summing up the first k components of the last equality gives
+
+(a1-b1)+...+(ak-bk) = x1+...+xk,
+
+so a1+...+ak >= x1+...+xk. But at the same time,
+
+a1+...+ak <= a1+...+an <= x1+...+xk,
+
+therefore a(k+1)=...an=0, and b1=...=bk=0 which implies ai=xi for
+1<=i<=k. Thus (x1,...,xk,0,...,0) is fixed under A, but we already
+showed that this leads to a contradiction.
+
+--
+
+b. I take it for granted that
+
+(I-A)^-1 = I + A + A^2 + ...,  where the RHS exists.
+
+The (1j)th entry of A^k is equal to E[Xk], where Xk is the average
+number of times Vj appears on the kth step (supposing the walk starts
+at V1). Then, assuming linearity of expectation for infinite sums, we
+have
+
+average # times that Vj appears on walk (starting from V1)
+= E[X1+X2+...]
+= E[X1] + E[X2] + ...
+= (1j)th entry of (I-A)^-1.
+
+--
+
+c. The quantity in (b) can be rewritten as
+
+P(Vj does not appear in walk) * 0
++ P(Vj appears in walk) E[# that Vj appears on walk | Vj appears in walk).
+
+The expectation is in fact equal to the average number of times that
+Vj appears on a walk starting from Vj, which is equal to the (jj)th
+entry of (I-A)^-1. Dividing that away gives the desired probability
+P(Vj appears in walk).
+
+--
+
+d. Let Sk denote the event of a walk starting at Vj, returning to Vj
+after k steps, and let its probability be pk. Assuming an infinite
+version of the inclusion-exclusion principle, we can derive
+P(union of S's).
+
+Observe that if k1<...<kl, then
+
+P(S(k1) cap ... cap S(kl)) = p(k1) p(k2-k1) ... p(kl-k(l-1)),
+
+and the sum over all length-l increasing chains of indices is equal to
+the sum of
+
+sum(i1,...,il positive integers) p(i1) ... p(il)
+= (p1 + p2 + ...)^l.
+= (A-1)^l,  where A is the average # of times Vj appears in the walk.
+
+
+Therefore the probability that the walk never returns to Vj is
+
+1 - P(union of S's)
+= 1 - (A-1) + (A-1)^2 - (A-1)^3 + ...
+= 1/(1+(A-1))
+= 1/A
+= 1 / [(jj)th entry of (I-A)^-1].
+
+--
+
+e. Straightforward.
+
+
+
+
+
+2.3.4.3-7 -------------------
+
+I had a fake proof that seemed really convincing until I saw a
+counterexample:
+
+Given a contiguous sequence of n integers (a1,...,an), define its
+*profile* to be the corresponding sequence (T1,...,Tn) where each Ti
+is a subset of {S1,...,Sn}, and Sj in Ti <=> Sj contains ai.
+
+Now consider the following tree: the vertices at height m are pairs
+(P,A) where P is a profile of a length-W(k,m) contiguous sequence of
+positive integers, and A is a monochromatic length-m arithmetic
+progression in that sequence (which exists by 2.3.4.3-6).
+
+A height-m (P,A) is a parent of a height-(m+1) (Q,B) if there is some
+contiguous subsequence P' of Q that matches P, and B (treated as a
+subsequence of P') is a subsequence of A.
+
+Clearly there are infinitely many vertices in total, but since there
+are finitely many profiles and arithmetic progressions of a given
+length, there are finitely many vertices with height m, so every
+vertex has finite degree. Thus, by Konig's Lemma there exists an
+infinite path which corresponds to a way of extending a monochromatic
+arithmetic progression indefinitely.
+
+--
+
+The mistake in the proof is the last statement. Observe that multiple
+contiguous sequences of integers (a1,...,an) can have the same
+profile, so when we move from a parent to a child, we might implicitly
+be hopping over to a different sequence. Therefore, we are not really
+extending an arithmetic progression indefinitely, but rather selecting
+increasingly long ones at different places.
+
+An explicit counterexample might illuminate the above remark: let
+S1,S2 be the set of numbers with evenly and oddly many digits
+respectively.
+
+
+
+
+
+2.3.4.4-27 ------------------
+
+Rearrange the indices of the U's and V's such that
+
+1. range({p+1,...,q}) = {s,...,r} for some s;
+
+2. Listing out the elements of f^-1(s), f^-1(s+1), ..., f^-1(r) in
+   order gives the sequence p+1,...,q.
+   (Actually this is not required, but I think it makes visualisation
+   a bit easier.)
+
+
+For example, a valid configuration would be
+
+   V1    V2 V3
+        / |  |
+U1 U2 U3 U4 U5  (arcs pointing upward).
+
+
+Note that V1,...,V(s-1) can be mapped into any of the U's because they
+are minimal vertices in any graph formed by adding r arcs. This gives
+q^(s-1) possibilities, so WLOG we can assume that s=1.
+
+Suppose we added r arcs and the resulting graph is a tree. A sequence
+can be formed as follows:
+
+1. Find the smallest Vk such that none of the U vertices with indices
+   in f^-1(k) have arcs pointing to them. (Such a Vk always exists,
+   otherwise there is an oriented cycle somewhere.)
+
+2. The arc goes from Vk to some Ul; output l. Remove Vk and the U
+   vertices with indices in f^-1(k), and repeat step 1 until all the
+   Vi's are gone.
+
+
+For instance, suppose the graph looks like
+
+         V1    V2 V3
+        / |   / |  |
+U1 U2 U3 U4 U5 U6 U7 (arcs pointing upward),
+
+and the arcs added are V1->U5, V2->U1, V3->U4. Then the corresponding
+sequence is
+
+4 (because there are no arcs to U7)
+5 (because there are no arcs to U3 or U4)
+1 (because there are no arcs to U5 or U6)
+
+
+The last index must be at most p, otherwise step 1 cannot be done with
+one V left. The other indices can be anything, so there are q^(r-1)p
+sequences in total.
+
+It is not too hard to reverse-engineer the graph from a sequence. For
+example, suppose we are given the above graph and the sequence 5 5
+2. Step 1 must have chosen V1, because the sequence tells us no arcs
+point to U3 or U4. So the first arc is V1->U5. Inductively, our
+problem is now to reverse-engineer the sequence 5 2 on the graph with
+V1,U3,U4 removed. Using the same reasoning, V3 must have been chosen,
+and next arc is V3->U5. The last arc is V2->U2.
+
+
+
+
+
+2.3.4.5-14 ------------------
+
+Initially, we start with a forest consisting of n individual roots
+w1,...,wn. At each step, we may merge two roots r and s, adding r+s to
+the total weighted path length. Clearly, the minimum is obtained by
+always merging the two smallest roots.
+
+
+
+
+
+2.3.4.5-15 ------------------
+
+I was inspired by the previous problem.
+
+a. We start with n roots w1,...,wn, and at each step we may merge two
+roots r,s to create a new root with value max(r,s)+1. Note that the
+root's value is always equals to the max-weighted path length of its
+tree. The total max-weighted path length is minimised by always
+merging the two smallest roots.
+
+b. Merging two roots r,s creates a new root with value x(r+s). The
+rest of the argument is same as (a).
+
+
+
+
+
+2.3.5-7 ---------------------
+
+This is an easier version of 2.3.1-21 because we have an extra bit
+MARK to work with.
+
+
+
+
+
+2.3.5-9 ---------------------
+
+We maintain two pointers P,Q that sweep in opposite directions. Q
+looks for marked nodes from the right, P looks for unmarked nodes from
+the left. Marked nodes found by Q are copied to P, and ALINK(NODE(Q))
+is set to P. (This node is now 'dead'.)
+
+When P and Q eventually meet in the middle, we do one last sweep of S
+from the start of the memory area to P. If ALINK(NODE(S)) > P, then
+update it to ALINK(ALINK(NODE(S)); same for BLINK(NODE(S)). Thus all
+links to dead nodes are replaced with their new addresses.
+
+
+
+
+
+2.4-4 -----------------------
+
+Otherwise, there is a complete qualification
+
+A0 OF A1 OF ... OF An
+
+that is a (partial) qualification of some other data item. WLOG it is
+a minimal counterexample (this assumption was neglected in the
+solution). Then A1 OF ... OF An is an unambiguous qualification, thus
+this data item has A0 as a child as well as some other descendant.
+
+Hence, the following additional checks are to be done on each pair
+(L,P) in Algorithm A:
+
+If we reached A7 (add to stack) by jumping from A4 to A6, i.e. A is
+the first child of its parent, then let (L1,P1) be the top of the
+stack, P2<-LINK(P), and verify that PARENT^k(P1) is not P2 for any
+k. This rules out counterexamples of the form
+
+P2
+  X
+  ...
+  B
+   ...
+       P1
+          X
+
+If we reached A7 without jumping, then let (L1,P1) be the top of the
+stack, P2<-LINK(P), and verify that PARENT^k(P2) is not P1 for any
+k. This rules out counterexamples of the form
+
+P1
+  ...
+      P2
+         X
+  X
+
+
+
+
+
+2.4-14 ----------------------
+
+The CHILD, SIB and PARENT fields can be inferred from SCOPE and an
+auxiliary stack.
+
+
+
+
+
+2.5-4 -----------------------
+
+A direct translation of Algorithm A results in the inner loop being
+8u:
+
+(rI1=Q, rI2=P, rI6=N)
+	ENT1	AVAIL		Q <- LOC(AVAIL).
+A2	LD2	0,1(LINK)	P <- LINK(Q).
+	J2Z	OVERFLOW
+	CMP6	0,2(SIZE)
+	JLE	A4
+	ENT2	0,1		Q <- P.
+	JMP	A2
+
+But Knuth cleverly rearranges the assignment of variables to cut it to
+7u:
+
+	ENT2	AVAIL		P <- LOC(AVAIL).
+A2	ENT1	0,2		Q <- P.
+	LD2	0,1(LINK)	P <- LINK(Q).
+	J2Z	OVERFLOW
+	CMP6	0,2(SIZE)
+	JG	A2
+
+
+
+
+
+2.5-11 ----------------------
+
+The problem can be simplified as follows. Suppose we want to linear
+search for P0 in a length n list, and we have a random pointer
+ROVER. We start the linear search from ROVER if index of ROVER < index
+of P0, else we start from the beginning. Then the average search
+length is this sum divided by n^2:
+
+(k is the index of P0)
+sum(1kn) (k+(k-1)+...1) + (n-k)k
+= sum(1kn) -k^2/2 + k/2 + nk
+= -n(n+1/2)(n+1)/6 + n(n+1)/4 + n^2(n+1)/2
+= 1/3 n^3 + O(n^2).
+
+
+
+
+
+2.5-13 ----------------------
+
+Some techniques I picked up from Knuth's solution:
+
+- rA and rX are available as temp registers
+
+- STZ ADDR(0:0) to make ADDR positive (making ADDR negative doesn't
+  seem that straightforward)
+
+- Defining a field TSIZE containing TAG and SIZE, so that both can be
+  set in one instruction (also avoids the hassle of negating the sign
+  of a word)
+
+
+
+
+
+2.5-14 ----------------------
+
+Let L=[block to left of P0 free?], R=[block to right of P0 free?].
+
+If L and R, then the situation looks like
+
+[P1 ]        [P1']          [P1 ]         [P1']--*
+  |            |              |                  |
+  |            |              |                  |
+[P  ][P0    ][P' ]    ->    [P,P0,P'          ]  |
+  |            |              |                  |
+  |            |              |                  |
+[P2 ]        [P2']          [P2  ]        [P2']--*
+
+LINK(P1') and LINK(P2'+1) are modified.
+
+If !L and !R, then 4 links are modified to insert P0 into the AVAIL List.
+
+If L and !R, then no links are modified.
+
+If !L and R, then the links LINK(P1'),LINK(P2'+1),LINK(P'),LINK(P'+1) are modified.
+
+
+
+
+
+2.5-21 ----------------------
+
+The sum of the first n terms of
+
+1+2+4+4+8+8+8+8+..., 1+2+3+4+5+6+7+8+...
+
+is equal to
+
+1/6 (4^(k+1)-1) + 1/2 + l 2^(k+1) and
+1/2 2^k(2^k+1) + l 2^k + l(l+1)/2 respectively
+
+where k=floor(log2(n-1)), l=n-2^k. The ratio simplifies to
+
+-8/3 (2^k)^2/(n^2+n) + 4 2^k/(n+1) + 2/(3n^2+3n).
+
+For large n this is essentially equal to
+
+-8/3 A^2 + 12/3 A,   A=2^k/n.
+
+A is between 1/2 and 1, and in this range the expression lies between
+4/3 and 3/2 -- this is the liminf and limsup of the ratio as
+n->infty.
+
+
+
+
+
+2.5-22 ----------------------
+
+Keeping track of an 11-word block is equivalent to keeping track of
+three consecutive blocks of size 8,2,1. (If it appears at the start of
+a 16-word block, the proper alignment is maintained.) Therefore,
+allocation requires three iterations of Algorithm R (because we need
+to do three splits), and liberation requires up to three iterations of
+Algorithm S. The increase in runtime may be worth it if space comes at
+a premium.
+
+
+
+
+
+2.5-26 ----------------------
+
+Write M as a sum of decreasing powers of 2, and treat these as the
+sizes of the top-level blocks.
+
+M = 2^a + 2^b + 2^c + ...
+
+A block of size 2^k and address P is top-level iff P+2^k >= M-2^k (the
+solution incorrectly stated the inequality P>=M-2^(k+1)).
+
+
+
+
+
+2.5-27 ----------------------
+
+My soluion takes (29R+4k+27)u where R=j-k is the number of splits
+done. The 4k term comes from computing 2^j on the fly.
+
+On the other hand, Knuth stored the powers of two in an auxiliary
+table, and his solution takes (25R+19)u (note there is no k
+term). Some things I noticed about his solution:
+
+1. For step R3, I run the instructions
+
+(rI1=k, rI2=j)
+ENTA  	 0,2
+DECA  	 0,1
+JAZ	 *
+
+to test whether j=k, but Knuth instead stores the difference j-k in a
+temp register and updates it within the loop body of R2 and R4. This
+restructuring might have saved around (2R)u cycles.
+
+2. I could have taken advantage of the convention that
+TAG(LOC(AVAIL[j])) = '-' and TAG(LOC(AVAIL[m+1])) = '+' to remove the
+CMP2 instruction in R1, saving (2R)u.
+
+3. In R2 I had the redundant load "LD3 AVAIL,2(LINKB)" even though the
+result is available in rA in the last iteration of the loop in
+R1. This saves 2u.
+
+
+
+
+
+2.5-28 ----------------------
+
+Knuth's solution takes at most (27S+27)u while mine takes at most
+(30S+38)u, where S is the number of merges. I think his time savings
+come from storing P temporarily in S1 to expedite the checking of the
+condition KVAL(P)!=k, as well as setting multiple fields of L at once
+in S3 thus cutting the number of store instructions.
+
+
+
+
+
+2.5-41 ----------------------
+
+I'll first describe Knuth's solution, which is missing details. At
+each point in time, we keep track of the total sizes of the split and
+unsplit 1,2,...,2^r blocks that are "taking up memory", meaning they
+are either reserved, or its buddy contains a reserved block
+somewhere. (Equivalently, they are the nodes of the binary tree
+representation of the memory map, as depicted in Fig 44.) Let R denote
+the total reserved memory.
+
+All size-1 blocks are unsplit; we can crudely upper bound their sum N
+by 2n, because every size-1 block is a buddy of a reserved block. But
+actually we can show N is no more than n -- if N=n at some point and a
+size-1 allocation is upcoming, that means R<n, and so there is an
+unused size-1 block, so that allocation will not increase N.
+
+Now we show that the sum of split size-2^k blocks is kn. This is equal
+to the sum of split and unsplit size-2^(k-1) blocks, which is kn by
+induction. The sum of unsplit size-2^k is N<=n like above; if N=n
+(note 2^k|N and 2^r|n) and there is an upcoming size <=2^k allocation,
+then there is an unused size-2^k block which can accomodate
+it (otherwise R=n).
+
+Inducting up to r, we get the upper bound (r+1)n as desired.
+
+--
+
+My own solution was more involved. I first determined how far "right"
+a block of size 1,2,4,...,2^r can appear (namely, up to location
+(1+r/2)n). Then, I show that if the current memory map up to (r+1)n
+cannot accomodate a size-2^k allocation, then R > n-2^k, so the
+allocation is not allowed.
+
+For instance, if k=r-1 and n=2^r, then the smallest R we can get away
+with comes from the following configuration:
+
+2^r                    .               .              .
+                     /   \           /   \          /   \
+2^(r-1)             .      .        .     .        .     .    ...
+                   / \    / \      / \   / \      / \   / \
+2^(r-2)           .   F  .   F    .   F .   F    .   F .   F
+                 .      .        .     .        .     .
+                .      .        .     .        .     / \
+16             .      .        .     .        .     U   F
+              .      .        .     .        / \
+8            .      .        .     .        U   F
+            .      .        .     / \
+4          .      .        .     R   F
+          .      .        / \
+2        .  	.        U   F
+        / \    / \
+1      U   F  U   F
+
+(U and F denote reserved and free blocks.)
+Then R >= 2+(2+4)+(8+16)+...+(2^(2r-1)+2^(2r)) = 2^(2r+1) >> (r+1)2^r.

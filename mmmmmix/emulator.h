@@ -126,6 +126,7 @@ void shiftrightcirc(word *destA, word *destX, int M);
 
 void wordtonum(word *destA, word *destX);
 void numtochar(word *destA, word *destX);
+void xor(word *destA, word w);
 
 unsigned char mixchr(byte b, unsigned char *extra);
 byte mixord(char c);

@@ -1,11 +1,5 @@
 A repository for my TAOCP-related work. Contains:
 
-mmmmmix   my own MIX environment
-taocp     programs written while working through the book, mostly in MIX
-          but occasionally in C
-misc      MIX programs I wrote outside of TAOCP
-
-
-I am also writing up solutions that I believe deserve an alternative
-explanation, at
-greysome.github.io > writeups > taocp-ch*-solutions.txt
+mmmmmix     my own MIX environment
+taocp       selected solutions and programs for the exercises in the book
+misc        MIX programs I wrote outside of TAOCP

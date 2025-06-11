@@ -1,0 +1,2543 @@
+Here are my solutions to selected exercises, when I feel like I need
+to explain things my own way.
+
+Notes on notation:
+- \sum_{i=a}^b is abbreviated sum(aib) or sum(a i b). (It is meant to be read as sum(a<=i<=b).)
+  Multiple summations are written sum(aib cjd ...).
+  Conditions such as sum(1in odd), sum(1in!=j) apply to the indexing variable.
+  Likewise \sum_k is sum(k).
+- (n k) [n k] <n k> are used for binomial coefficients and Stirling
+  numbers.
+- x^k# and x^k` denote rising and falling powers respectively.
+
+
+
+
+1.2.1-13 --------------------
+
+A3. T <= 3(n-r-1)+2
+A4/A5. T <= 3(n-r)
+A6. T <= 3(n-r)+1
+
+The idea is that each execution of E2 causes r to decrease by at least
+1 (because the previous r is the current d, and the new r is the
+remainder when dividing by d).
+
+
+
+
+1.2.2-25 --------------------
+
+We have to show two things:
+1. The algorithm terminates.
+2. It computes an approximation to log(x).
+
+I'll first show 2 by proving that if we allow infinite precision and
+let the algorithm run forever, it will compute log(x) to arbitrary
+precision. What the algorithm essentially does is greedily find a
+representation of x as an infinite product of numbers 2^k/(2^k-1)
+(possibly with repetition); then by taking logs and summing up the
+precomputed values log(2^k/(2^k-1)) we obtain log(x) exactly. The
+first few numbers of this form are
+
+2/1 4/3 8/7 16/15 32/31 64/63 128/127 256/255 512/511 1024/1023 ... -> 1.
+
+With infinite precision, a right shift by n bits is the same as
+division by 2^n. What step L3 does then is to find the smallest k such
+that
+
+x-z = x-x/2^k = x*(2^k-1)/2^k > 1, i.e. x > 2^k/(2^k-1).
+
+In other words, 2^k/(2^k-1) is the largest number of that form less
+than x. Then we subtract z from x (i.e. divide 2^k/(2^k-1)) and rerun
+step L3 on it to obtain (2^k1-1)/2^k1, and so on. This gives us an
+infinite product representation of x.
+
+The infinite product does converge to x, because the sequence of x's
+converge to 1. (To rigorously prove it, suppose xn is the nth term and
+kn is the k we get for xn at L3. It can be shown that kn is
+nondecreasing and approaches infinity, and since xn <
+2^(kn-1)/(2^(kn-1)-1) it approaches 1.)
+
+--
+
+With finite precision, the algorithm terminates because:
+1. There are finitely many representable values between 1 and 2.
+2. x-z is always strictly less than x.
+
+1 is obvious and I leave it up to the reader to verify 2. This
+concludes the exercise.
+
+
+
+
+1.2.2-27 --------------------
+
+From the question Knuth defines
+
+x/10^n (1-d) <= x0' <= x/10^n (1+e),
+(xk')^2 (1-d) <= yk <= (xk')^2 (1+e).
+
+Let's compute the upper bound for xk' step by step:
+
+x0' <= x(1+e) / 10^n
+(x0')^2 <= x^2(1+e)^2 / 10^(2n)
+y0 <= x^2(1+e)^3 / 10^(2n)
+
+Since
+
+x1' = y0/10 if y0 > 10, y0 otherwise
+
+we have
+
+x1' <= x^2(1+e)^3 / 10^(2n+b1)
+
+Similarly,
+
+x2' <= x^4(1+e)^7 / 10^(4n+2b1+b2)
+x3' <= x^8(1+e)^15 / 10^(8n+4b1+2b2+b3)
+...
+
+In general,
+
+{10^(log'x) * xk'^(1/2^k)}^(2^k)
+= 10^{2^k(n+b1/2+b2/4+...+bk/2^k)} xk'
+<= x^(2^k) (1+e)^{x^(2^(k+1)-1)}
+<= x^(2^k) (1+e)^{x^(2^(k+1))}
+
+so
+
+10^(log'x) <= x(1+e)^2 / xk'^(1/2^k) <= x(1+e)^2
+
+taking logarithms of both sides yields
+
+log'x <= log10(x) + 2log10(1+e).
+
+As for the lower bound, we obtain by similar means
+
+10^(log'x) >= x(1+d)^2 / xk'^(1/2^k),
+
+and note that 1 <= xk < 10 implies 1/10^(1/2^k) < 1/xk'^(1/2^k) <= 1, so
+
+log'x > log10(x) + 2log10(1+d) - 1/2^k
+
+as desired. Note how we made crucial use of the fact that xk is
+bounded.
+
+--
+
+Now let's specialise to the example in the text. Numbers are rounded
+to 3 decimal places. Furthermore, all numbers in the computation lie
+in [1,10), so we can compute
+
+1+e = (maximum amount a number can be scaled up by rounding to 3 decimal places)
+= 1.001 / 1.0005
+~~ 1.0005
+
+1-d = (maximum amount a number can be scaled down by rounding to 3 decimal places)
+= 1.000 / 1.0005
+~~ 0.9995.
+
+The upper error is
+
+2log10(1+e) ~~ 0.000434,
+
+and after many steps the lower error is around
+
+2log10(1-d) ~~ -0.000434.
+
+This almost matches with Knuth's figure of 0.00044.
+
+
+
+
+
+1.2.2-29 --------------------
+
+(a) Derivative of b*log_b(x) = b*ln(x)/ln(b) wrt b is
+
+ln(x)(ln(b)-1 / ln(b)^2);
+
+stationary point occurs when b = e.
+
+(b) Since 2 < e < 3, it suffices to see which of 2*log_2(x) and
+3*log_3(x) is smaller. But we have
+
+3*log_3(x) = 3*log_2(x)/log_2(3) ~~ 1.893*log_2(x) < log_2(x),
+
+so b*log_b(x) is minimum at the integral value b=3.
+
+(c) Suppose n is the minimum point. Then for all b we have
+
+(b+1)*log_b(x) = (b+1)*log_n(x)/log_n(b) >= (n+1)log_n(x)
+=> b+1 >= (n+1)log_n(b)
+=> n^(b+1) >= b^(n+1).
+
+We can verify that this is the case for n=4:
+
+b=2: 4^3 >= 2^5
+b=3: 4^4 >= 3^5
+
+What about the other b's? We return to calculus, using the fact that
+the derivative
+
+ln(x)/ln(b)^2 * (ln(b) - (b+1)/b)
+
+is positive for b>=4 (whereas it isn't for b=2,3). This is because
+ln(4) >= 5/4, and ln(b)-(b+1)/b is increasing (since ln(b) is
+increasing and (b+1)/b is decreasing).
+
+
+
+
+1.2.3-16 --------------------
+
+sum(0jn) jx^j
+= sum(0jn) sum(1ij) x^j
+= sum(0in) sum(ijn) x^j
+= sum(1in) x^i-x^(n+1) / 1-x
+= 1/(1-x) [sum(1in)x^i - nx^(n+1)]
+= 1/(1-x) [x-x^(n+1) / 1-x   -   nx^(n+1)]
+= 1/(1-x)^2 [x - (n+1)x^(n+1) + nx^(n+2)].
+
+
+
+
+
+1.2.3-29 --------------------
+
+To minimise clutter I will omit the "sum" from the ensuing notation.
+
+Let S be the above sum. Considering the 3! = 6 different ways to
+interchange order of summation, we have
+
+6S = (0in 0ji 0kj) + (0in 0ki kji) + (0jn jin 0kj)
+   + (0jn 0kj jin) + (0kn kin kji) + (0kn kjn jin)
+
+   (relabelling summand variables so they appear in the order ijk)
+   = (0in 0ji 0kj) + (0in 0ji jki) + (0in ijn 0ki)
+   + (0in 0ji ikn) + (0in ijn ikj) + (0in ijn jkn)
+
+   = (0in 0ji) [(0kj) + (jki) + (ikn)]
+   + (0in ijn) [(0ki) + (ikj) + (jkn)]
+
+   (swapg i and j in the first term and interchange order of summation)
+   = 2 (0in ijn) [(0ki) + (ikj) + (jkn)]
+
+The term is a sum over all i,j,k satisfying
+1. 0<=i<=j<=n
+2. 0<=k<=i or i<=k<=j or j<=k<=n, where the k=i and k=j cases are counted twice
+
+Thus we can rewrite it as
+
+2 [(0kn) (0jin) ai aj ak + (0ijn) (ai^2 aj + ai aj^2)],
+
+and the first sum can be simplified as
+
+(0kn) (0ijn) ai aj ak
+= [(0kn) ak] [(0ijn) ai aj]
+= 1/2 [S1(S1^2 + S2)],
+
+where Sk = (0in) ai^k. Now letting the second sum be T, we have
+
+2T = (0in) (ijn) (ai^2 aj + ai aj^2)
+   + (0jn) (0ij) (ai^2 aj + ai aj^2)
+
+   = (0in) (ijn) (ai^2 aj + ai aj^2)
+   + (0in) (0ji) (ai^2 aj + ai aj^2)
+   (since the summand is symmetric under the swap (ij))
+
+   = (0in) [(0jn) (ai^2 aj + ai aj^2) + 2 ai^3]
+   (the previous term is a sum over all 0<=i<=n and 0<=j<=n,
+    with j=i counted twice)
+
+   = (0in 0jn) ai^2 aj + (0in 0jn) ai aj^2 + 2 (0in) ai^3
+   = 2*S1*S2 + 2*S3.
+
+Thus
+
+6S = S1(S1^2 + S2) + 2*S1*S2 + 2*S3
+   = S1^3 + 3*S1*S2 + 2*S3.
+
+
+
+
+1.2.4-36 --------------------
+
+sum(1kn) floor(k/2)
+= sum(1kn) k/2  -  sum(1kn) (k/2 mod 1)
+= n(n+1)/4 - (1/2 + 0 + 1/2 + ...)
+= n^2/4 + n/4 - ceil(n/2)/2
+= (n^2 - [n odd]) / 4
+
+Now since
+(n^2 - [n odd])/4  <=  n^2/4  <  (n^2 - [n odd])/4 + 1,
+it is equal to floor(n^2/4) as desired.
+
+sum(1kn) ceil(k/2)
+= sum(1kn) floor(k+1 / 2)
+= floor((n+1)^2 / 4)
+
+Knuth's expression is ceil(n(n+2)/4), but they are equal because
+1. n(n+2)/4 and (n+1)^2/4 differ by less than 1
+2. Either n(n+2) or (n+1)^2 is divisible by 4 and so one of the
+expressions is an integer, in other words there is an integer between
+n(n+2)/4 and (n+1)^2/4.
+
+
+
+
+1.2.4-37 --------------------
+
+sum(1kn) floor((mk+x)/n)
+= sum(1kn) (mk+x / n)  -  sum(1kn) [(mk+x / n) mod 1]
+= m(n-1)/2 + x - 1/n sum(1kn)(mk+x mod n)   (*)
+
+To continue the computation we want to evaluate sum(1kn)(mk+x mod n).
+Let's first consider sum(1kn)(mk mod n). The multiples of m generate
+an additive subgroup of Z/nZ where the gap between successive elements
+is d=(m,n). Thus it has n/d elements, and because we are taking n
+multiples, the total sum is
+
+d * (0 + d + 2d + ... + (n/d-1)d)
+= d^2 * 1/2 n/d (n/d-1)
+= nd(n/d-1)/2
+= n(n-d)/2
+
+Letting x' = x mod d, we then have
+
+sum(1kn)(mk+x mod n)
+= d * (x' + (d+x') + (2d+x') + ... + ((n/d-1)d+x'))
+= n(n-d)/2 + d(n/d)x'
+= n[(n-d)/2 + (x mod d)].
+
+Thus, we can continue from (*):
+
+...
+= m(n-1)/2 + x - (n-d)/2 - (x mod d)
+= (m-1)(n-1)/2 + (d-1)/2 + x - x mod d
+= (m-1)(n-1)/2 + (d-1)/2 + d floor(x/d).
+
+
+
+
+1.2.4-42 --------------------
+
+Part (a) is very easy to prove.
+
+sum(1kn) floor(log_b(k))
+= n log_b(n) - sum(1 k n-1) [k * (floor(log_b(k+1)) - floor(log_b(k)))]
+
+Note that the bracketed term in the sum is 1 if k+1 is a power of b,
+and 0 otherwise. Thus the sum can be simplified to
+
+sum(2 b^l n) (b^l-1)
+= b + b^2 + ... + b^floor(log_b(x)) - floor(log_b(x)).
+
+Putting it back into the previous expression we get
+
+(n+1) * log_b(n)  -  b * (b^floor(log_b(x))-1 / b-1),
+
+as desired.
+
+
+
+
+1.2.4-48 --------------------
+
+(a). floor(m+n-1 / n) = ceil(m/n) is not necessarily true for n<0
+(e.g. n=-1). To prove it for n>0 it suffices to show that
+
+1. (m+n-1)/n - m/n < 1 (clearly true)
+
+2. There is always an integer between m/n and (m+n-1)/n, i.e. there is
+always a multiple of n between m and m+n-1. This is clearly true as
+well.
+
+
+
+(b). By (a) the LHS can be rewritten ceil(n-floor(n/25) / 3). Then we
+want to prove the equality
+
+ceil(25n-25floor(n/25) / 75) = floor(24n+72 / 75),
+
+where the denominators are made equal. We use the same method as
+(a). Firstly, the difference is
+
+1/75 (n-25floor(n/25) - 72),
+
+and since 0 <= n-25floor(n/25) < 24 we have the bounds
+
+-72/75 <= 1/75 (n-25floor(n/25) - 72) < -48/75,
+
+and in particular the difference is always less than 1. Next, we want
+to show that there always exists a multiple of 75 between
+
+25n-25floor(n/25) = 24n + n-25floor(n/25) and 24n+72.
+
+It suffices to compare their residues mod 75, so it suffices to check
+this for n=0 to 74. In fact, it suffices to check n=0 to 24, because
+24(25k+l) = 24l mod 75. But in the end I still needed to verify this
+via brute force.
+
+Actually Knuth's solution is a lot cleaner, as he derives the equality
+simply by repeatedly applying previously proven formulas.
+
+
+
+
+
+1.2.5-24 --------------------
+
+Firstly, we have 1+x <= e^x for all real x, with equality at x=0. This
+can be seen in two ways: firstly, one can use the Maclaurin series
+
+e^x = 1 + x + (x^2/2) + (x^3/6) + ...
+
+to immediately conclude that e^x > 1+x for x>0. Another way is to look
+at derivatives: note that e^x>1 for x>0 and e^x<1 for x<0, where e^x
+and 1 are the derivatives of e^x and 1+x respectively.
+
+Subbing in x=1/k and -1/k in the inequality 1+x<= e^x gives the
+following bounds for e^(1/k):
+
+(k+1 / k) <= e^(1/k) <= (k / k-1).
+
+A consequence of this is that
+
+(n / n-k)
+= (n / n-1)(n-1 / n-2)...(n-k+1 / n-k)
+<= e^[(1 / n-1) + ... + (1 / n-k)].
+
+Therefore,
+n^n / n!
+= (n / n-1)...(n / n-(n-1))
+<= e^(n-1).
+
+Similarly,
+
+(n / n-k) >= e^[(1/n) + ... + (1 / n-k+1)],
+
+and so n^(n+1)/n! >= e^(n-1).
+
+(This time the inequality for k=n-1 is applied twice.)
+
+
+
+
+
+1.2.6-10 --------------------
+
+(a). Let p be a prime write n=ap+b where 0<=b<p. Then the numerator of (n p)
+is the product
+
+(ap + b) (ap + b-1) ... (ap + b-(p-1))
+
+Exactly one of these terms is divisible by p, namely ap. On the other
+hand the denominator is p!, so we can divide p from both numerator and
+denominator. By Wilson's theorem, the new denominator is -1 mod p, and
+the new numerator is a(p-1)! = -a mod p. Thus (n p) = -a/-1 = a mod p.
+
+
+(b). If p is prime and 1<=k<=p-1, then the numerator of (p k) is 0 mod
+p since one of the terms is p, while the denominator is nonzero mod p
+since none of the terms are divisible by p. Thus (p k) = 0 mod p.
+
+
+(c). The numerator of (p-1 k) is (p-1)(p-2)...(p-k) which is equal to
+(-1)^k k! mod p. On the other hand, the denominator is k! mod p, so
+(p-1 k) = (-1)^k mod p.
+
+
+(d). Trivial since (p k) | (p+1 k).
+
+--
+
+(e). Write (n k) in terms of numerator and denominator:
+
+(n k) = n(n-1)...(n-(k-1)) / k(k-1)...1
+
+The number of multiples of p in numerator and denominator are
+
+floor(n/p) - floor((n-k)/p)    and    floor(k/p)    respectively.
+
+The first case is when n mod p < k mod p. Then we have
+
+floor((n-k)/p) = floor(n/p) - floor(k/p) - 1
+
+and so
+
+floor(n/p) - floor((n-k)/p) = floor(k/p) + 1.
+
+Thus there are more multiples of p in numerator than denominator, and
+so (n k) = 0 mod p.
+
+On the other hand, n mod p < k mod p implies (n mod p  k mod p) = 0 by
+definition, so
+
+(floor(n/p) floor(k/p)) (n mod p  k mod p) = 0 mod p.
+
+The second case is where n mod p >= k mod p. Using (17 7) mod 3 as an
+example, write the numerator and denominator out as follows:
+
+   17 16             7
+15 14 13   and   6 5 4     (multiples of 3 in the left column)
+12 11            3 2 1.
+
+We can divide off p from the first column, which preserves the value of
+(n k) mod p.
+
+  17 16             7
+5 14 13   and   2 5 4
+4 11            1 2 1.
+
+In the right matrix, the top row is congruent to (k mod p)! while the
+first column is floor(k/p)!. As for the remaining submatrix
+
+5 4
+2 1,
+
+each row is congruent to -1 by Wilson's theorem, so overall the
+denominator is congruent to
+
+(1)  (-1)^floor(k/p) (k mod p)! floor(k/p)! mod p.
+
+What about the numerator i.e. the left matrix? Similarly, the top row
+is congruent to (n mod p)! while the first column is
+
+floor(n/p)! floor((n-k)/p)!.
+
+The remaining contributions come from the matrix
+
+14 13
+11.
+
+We know that the topmost (floor(n/p) - floor((n-k)/p) - 1) rows are
+congruent to -1.
+
+As for the bottommost row, we can first fill in the missing entries,
+then divide by the entries we added. Using this approach, the bottom
+row is congruent to (-1)/(n-k mod p)! mod p. Overall, the numerator is
+congruent to
+
+sgn{floor(n/p) - floor((n-k)/p)}   *   (n mod p)! * floor(n/p)!
+     /    ((n-k) mod p)! * floor((n-k)/p)!
+mod p.
+
+Since n mod p >= k mod p, we have
+
+floor((n-k)/p) = floor(n/p) - floor(k/p)
+and
+(n-k) mod p = nmod p - kmod p.
+
+So this expression can be further simplified to
+
+(2)  sgn{floor(k/p)} * (n mod p)! * floor(n/p)!
+        /    (n mod p - k mod p)! * (floor(n/p) - floor(k/p))!
+
+Taking the quotient (2)/(1) gives us
+
+(n k) = (n mod p  k mod p) (floor(n/p) floor(k/p))   mod p,
+
+as desired.
+
+--
+
+(f). Follows easily from (e).
+
+
+
+
+
+1.2.6-11 --------------------
+
+Let mu(k) be the multiplicity of the prime factor p in the factorial
+k!, and s(k) be the sum of digits in k! under the p-ary number
+system. It was proven in a previous exercise that
+
+mu(k) = (k-s(k))/(p-1).
+
+Now since (a+b a) = (a+b)! / a!b!, we have
+
+mu((a+b a)) = mu(a+b) - mu(a) - mu(b) = (s(a)+s(b)-s(a+b)) / (p-1).
+
+Now consider the numbers a=17 and b=16, which are written as (1,2,2)
+and (1,2,1) respectively in the 3-ary number system. I will
+demonstrate adding a to b:
+
+(1,2,2)+(1,2,1)
+= (2,4,3)    (digit sum = s(a)+s(b) = 9)
+= (3,1,3)    (carry; digit sum = s(a)+s(b)-(3-1) = 7)
+= (1,0,1,3)  (carry; digit sum = s(a)+s(b)-2(3-1) = 5)
+= (1,0,2,0)  (carry; digit sum = s(a)+s(b)-3(3-1) = 3)
+
+Note how each carry decreases the digit sum by p-1. Thus
+
+number of carries = s(a)+s(b)-s(a+b) / p-1.
+
+
+
+
+
+1.2.6-12 --------------------
+
+Mod 2, every (n k) can be written as a product of (a b)'s, where a,b
+in {0,1}. For instance, we have
+
+14 = 1*2^3 + 1*2^2 + 1*2^1 + 0*2^0
+and
+7  = 0*2^3 + 1*2^2 + 1*2^1 + 1*2^0,
+
+so
+
+(14 7) = (1 0)(1 1)(1 1)(0 1) mod 2.
+
+Out of the four possibilities for (a b), only (0 1) = 0. So we want to
+prevent (0 1) from appearing in the RHS for all 0<=k<=n. That only
+happens when n has the form
+
+2^0 + 2^1 + 2^2 + ... + 2^k
+
+The first few such values are 1, 3, 7, 15.
+
+
+
+
+
+1.2.6-16 --------------------
+
+By symmetry, (k+n-2 n-1) = (k+n-2 k-1). Now we have
+
+(-1)^n (-n k-1)
+= (-1)^n       (-n)(-n-1)...(-n-(k-2)) / (k-1)(k-2)...1
+= (-1)^(n+k-1) n(n+1)...(n+k-2) / (k-1)(k-2)...1
+= (-1)^(n+k-1) (n+k-2 k-1).
+
+Similarly, we have
+(-1)^k (-k n-1) = (-1)^(n+k-1)(n+k-2 k-1).
+
+
+
+
+
+1.2.6-18 --------------------
+
+(r+s choose r-m+n)
+= sum(k)  (r (r-m+n)-k) (s k)
+= sum(k') (r (r-m+n)-(n+k')) (s n+k')
+= sum(k') (r r-m-k') (s n+k')
+= sum(k') (r m+k') (s n+k').
+
+
+
+
+
+1.2.6-19 --------------------
+
+The first, third and fourth steps are probably wrong because the
+identities (19) and (22) require that s be an integer, which it
+isn't necessarily. This might be why induction on r is needed; I
+haven't checked the answer key yet. Regardless the general idea should
+be to bring k down from the upper index to the lower index, so we
+can exploit previous summation identities.
+
+sum(k) (r k) (s+k n) (-1)^(r-k)
+= sum(k) (r k) (-n-1 s+k-n) (-1)^((s+k-n)+(r-k))   by (19)
+= (-1)^(r+s-n) * sum(k) (r k) (-n-1 s-n+k)
+= (-1)^(r+s-n) * (r-n-1 r+s-n)    by (22)
+= (s n-r)   by (19).
+
+
+
+
+
+1.2.6-20 --------------------
+
+sum(0kr) (r-k m) (s k-t) (-1)^(k-t)
+= sum(0kr) (-m-1 r-k-m) (s k-t) (-1)^((r-k-m)+(k-t))    by (19)
+= (-1)^(r-m-t) * sum(-t k-t r-t) (-m-1 r-m-t-(k-t)) (s k-t)
+= (-1)^(r-m-t) * (s-m-1 r-m-t)   by (21)
+= (s-m-1 r-m-t)   by (17).
+
+Note the application of (21) is legitimate since k-t runs from -t
+to r-t, and in particular it runs from 0 to r-m-t. We also have
+sum(0kr) (r-k m) (s+k n)
+= sum(0kr) (r-k m) (-n-1 k-(n-s)) (-1)^(k-(n-s))
+= (r-(n-s)-(-n-1)  r-(n-s)-m)   by (24)
+= (r+s+1 r-n+s-m)
+= (r+s+1 m+n+1)   by symmetry.
+
+
+
+
+
+1.2.6-21 --------------------
+
+For reference, the equation in question is
+
+sum(0kr) (r-k m)(s+k n) = (r+s+1 m+n+1),
+
+where n, s, m and r are nonnegative integers and n >= s. If n, m and r
+are fixed, then LHS and RHS agree for only n+1 values of s since n >=
+s >= 0. But LHS is a sum of degree n polynomials and hence a degree n
+polynomial itself, while RHS is a degree m+n+1 polynomial. Thus there
+is insufficient proof that LHS and RHS agree on all points.
+
+
+
+
+
+
+1.2.6-22 --------------------
+
+Mildly funny story behind this question: I tried bashing it out for a
+week until I gave up and peeked at the solution. Then I realised it
+made use of material I hadn't even gone through yet!
+
+For reference, the equation is
+
+sum(k>=0) (r-tk k) (n-1-r+tk n-k) (r / r-tk) = (r+s-tn n),
+
+where n is an integer. The key trick is to use the inversion identity
+(34):
+
+(sum(k>=0) (r-tk k) (n-1-r+tk n-k) (r / r-tk)
+= sum(k>=0) [ (r/n!)(n k) *
+     prod(0<j<k) (r-tk-j) * prod(0<=j<n-k) (n-1-r+tk-j) ]
+= (r/n!) * sum(k>=0) [ (n k) (-1)^(n-k)
+     prod(0<j<k) (-tk+r-j) * prod(0<=j<n-k) (-tk+j+r+1-n) ]
+= (r/n!) * sum(k>=0) [ (n k)(-1)^(n-k) * (deg n-1 polynomial in k) ]
+= 0   by (34).
+
+
+
+
+
+1.2.6-23 --------------------
+
+For reference, the equation is
+
+sum(k>=0) (r-tk k) (s-t(n-k) n-k) (r / r-tk) = (r+s-tn n).
+
+This is a straightforward application of the addition formula:
+
+sum(k>=0) (r-tk k) ((s+1)-t(n-k)  n-k) (r / r-tk)
+= sum(k>=0) (r-tk k) (s-t(n-k) n-k) (r / r-tk) +
+  sum(k>=0) (r-tk k) (s-t(n-k) (n-1)-k) (r / r-tk)
+  by addition formula
+= (r+s-tn n) +
+    sum(k>=0) (r-tk k) . ((s-t)-t((n-1)-k)  (n-1)-k) . (r / r-tk)
+= (r+s-tn n) + (r+(s-t)-t(n-1)  n-1)
+= (r+s-tn n) + (r+s-tn n-1)
+= (r+(s+1)-tn n)   by addition formula.
+
+
+
+
+
+1.2.6-24 --------------------
+
+I don't get this exercise. How is the identity true for all r, s and t
+and all integer n, purely from that 'inductive step' and the base case
+s=n-1-r+nt alone?  Regardless, note that (26) is a *massive*
+generalisation of (21) with the extra terms tk and t(n-k).
+
+
+
+
+
+1.2.6-30 --------------------
+
+For reference, Example 3 is the sum
+
+sum(k) (n+k m+2k) (2k k) (-1)^k / k+1
+
+where m and n are positive integers. To transform it into a form
+suitable for (26), one only needs to compare the denominator k+1 with
+the corresponding expresion r-tk. This suggests t=-1 and r=1 --- the
+actual substitutions made are t=1 and r=-1, so the derivation is
+smoother. The second clue is to transform the lower indices m+2k and k
+into something resembling n-k and k. The last clue is to get rid of
+the (-1)^k via (17).
+
+sum(k) (n+k m+2k) (2k k) (-1)^k / k+1
+= sum(k) (n+k n-m-k) (-k-1 k) / k+1
+  by symmetry and (17)
+= sum(k) (-1-k k) . ((2n-m)-((n-m)-k)  (n-m)-k) . -1 / -1-k
+  [r'=-1, t'=1, s'=2n-m, n'=n-m]
+= (n-1 n-m)   by (26)
+= (n-1 m-1).
+
+
+
+
+
+1.2.6-31 --------------------
+
+sum(k) (m-r+s k) (n+r-s n-k) (r+k m+n)
+= sum(j,k) (m-r+s k) (k j) (n+r-s n-k) (r m+n-j)
+  by hint
+= sum(j,k) (m-r+s j) (m-r+s-j k-j) (n+r-s n-k) (r m+n-j)
+  by (20)
+= sum(j) ( (m-r+s j) (r m+n-j)
+           sum(k) (m-r+s-j k-j) (n+r-s n-j-(k-j)) )
+= sum(j) (m-r+s j) (r m+n-j) (m+n-j n-j)
+  by (21)
+= sum(j) (m-r+s j) (r m+n-j) (m+n-j m)
+  by symmetry
+= sum(j) (m-r+s j) (r m) (r-m n-j)
+  by (20)
+= (r m)(s n) by (21).
+
+
+
+
+
+1.2.6-33 --------------------
+
+Proceed by induction. Base case is trivially true, so suppose identity
+holds for n. Then we have
+
+(x+y)^(n+1)#
+=(x+y+n) sum(k) (n k) x^k# y^(n-k)#.
+
+Note that by the identity
+
+x x^k# = x^(k+1)# - k x^k#,
+we have
+
+x sum(k) (n k) x^k# y^(n-k)#
+= sum(k) (n k) x^(k+1)# y^(n-k)# - k sum(k) (n k) x^k# y^(n-k)#
+
+and similarly
+y sum(k) (n k) x^k# y^(n-k)#
+= sum(k) (n k) x^(k+1)# y^(n-k+1)# - (n-k) sum(k) (n k) x^k# y^(n-k)#
+
+Thus
+
+(x+y+n) sum(k) (n k) x^k# y^(n-k)#
+= sum(k) (n k) x^(k+1)# y^(n-k)#
+  + sum(k) (n k) x^k# y^(n-k+1)#.
+
+Transforming the sum index and applying the addition formula
+simplifies it to
+
+sum(k) (n+1 k) x^k# y^(n-k)#.
+
+as desired.
+
+
+
+
+
+1.2.6-35 --------------------
+
+The Stirling numbers of the first kind have a nice
+interpretation. Recall they are defined by the formula
+
+x(x+1)...(x+n-1)
+= [n n]x^n + [n n-1]x^(n-1) + ... + [n 0].
+
+From this obtain a formula for the kth coefficient:
+
+[n k] = sum(a1,...,a(n-k)) a1...a(n-k),
+
+where the ai's are distinct numbers in {1,...,n-1}.
+
+Every possible set of ai's in {1,...,n} falls under two types: those
+that contain n and those that don't. The identity
+
+[n+1 k] = n[n k] + [n k-1]
+
+easily follows from this fact.
+
+As for Stirling numbers of the second kind, a more manual approach is
+used. Recall that they are defined by the formula
+
+x^n = sum(k) {n k} x^k`
+
+Multiplying through by x gives
+
+x^(n+1)
+= sum(k) {n k} x * x^k`
+= sum(k) {n k} [x^(k+1)` + k x^k`]
+= sum(k) {n k} x^(k+1)`  +  sum(k) {n k} k x^k`
+= sum(k') {n k'-1} x^k'` +  sum(k) {n k} k x^k`
+= sum(k) [{n k-1} + k{n k}] x^k`
+
+At the same time we have
+
+x^(n+1) = sum(k) {n+1 k} x^k`
+
+by definition, so
+
+{n+1 k} = k{n k} + {n k-1}.
+
+
+
+
+
+
+1.2.6-36 --------------------
+
+sum(k)(n k) is equal to 2^n, the total number of subsets of
+{1,...,n}. The alternating sum (sum(k) (-1)^k (n k)) can be evaluated
+using the addition formula:
+
+sum(k) (n k)(-1)^k
+= sum(k) [(n-1 k) + (n-1 k-1)] (-1)^k
+= sum(k) (n-1 k)(-1)^k + sum(k) (n-1 k-1)(-1)^k
+= sum(k) (n-1 k)(-1)^k + sum(k') (n-1 k')(-1)^(k'+1)
+= 0.
+
+Note that the result is also immediate for even n due to symmetry.
+
+
+
+
+
+1.2.6-37 --------------------
+
+sum(k even)(n k)
+= 1/2 [sum(k)(n k) + sum(k)(-1)^k(n k)]
+= 2^(n-1).
+
+
+
+
+
+1.2.6-40 --------------------
+
+(a). Follows easily by substituting t=1-u.
+
+(b). This is analogous to the addition formula for binomial
+coefficients. Also follows easily by elementary manipulations.
+
+(c). I prove the equivalent statement
+
+B(x+1,y) = x/y B(x,y+1)
+
+using integration by parts:
+
+B(x+1,y)
+= int(0 to 1) t^x (1-t)^(y-1) dt
+= (-(1/y) 1^x (1-1)^y)
+  - (-(1/y) 0^x (1-0)^y)
+  + (x/y) * int(0 to 1) t^(x-1) (1-t)^y dt
+= x/y B(x,y+1).
+
+
+
+
+
+1.2.6-41 --------------------
+
+For reference,
+
+Gamma_m(x) = m^x m! / x(x+1)(x+2)...(x+m)
+
+and
+
+B(x,y+1) = (y / x+y) B(x,y).
+
+The statement Gamma_m(x) = m^x B(x,m+1) follows immediately by
+repeated application of the latter formula.
+
+
+(a). Note that
+
+B(x,y) / B(x,y+m+1) = (x+y / y) * (x+y+1 / y+1) ... (x+y+m / y+m).
+
+The RHS is also easily seen to be the latter expression.
+
+
+(b). Since (a) holds for all m, the limit
+
+lim(m->infty) (Gamma_m(y) m^x / Gamma_m(x+y)) * B(x,y+m+1)
+
+exists. It is equal to
+
+Gamma(y)/Gamma(x+y) lim(m->infty) m^x B(x,m+1),
+
+which in turn is equal to Gamma(x)Gamma(y)/Gamma(x+y). Note how y+m+1
+was substituted for m+1, because both approach infty as m->infty.
+
+
+
+
+
+Motivation for 1.2.6-40,41: Beta distribution --------------------
+
+The Beta distribution Beta(a,b) is parametrised by positive reals
+a,b. It is supported on [0,1] and its pdf is given by
+
+x^(a-1)(1-x)^(b-1) / B(a,b).
+
+Suppose you have a (possibly unfair) coin, and you want to determine
+the probability p of landing heads based on a sample of heads and
+tails. Using the Bayesian approach, we can model p by the prior
+distribution Beta(a,b). The specific values of a and b depend on our
+prior assumptions: if we initially assume that the coin is fair, we
+might set a=b=1. This yields a bell-shaped distribution symmetric
+about x=0.5. We could also set a=b=2 instead, which will also yield a
+symmetric distribution, but with lower variance.
+
+If we assume instead that the coin is skewed towards heads, we set
+a>b. In general, a and b represent the 'initial number' of heads and
+tails to factor into the prior.
+
+By Bayes' theorem, we then calculate the posterior distribution after
+a sample of m heads and n tails. It turns out to be another Beta
+distribution Beta(a+m,b+n)! This statement has a very nice
+interpretation: we are factoring in m extra heads and n extra tails
+into the distribution after the sample. Since the prior and posterior
+distributions are of the same type, we say that Beta(a,b) is a
+conjugate prior.
+
+
+
+
+
+1.2.6-42 --------------------
+
+This is a trivial matter of replacing the factorials with Gamma's:
+
+r!/ k!(r-k)!
+= Gamma(r+2) / (r+1)Gamma(k+1)Gamma(r-k+1)
+= B(k+1,r-k+1) / r+1.
+
+
+
+
+
+1.2.6-50 --------------------
+
+When n=0, the sum evaluates to 1.
+
+When n>0,
+sum(0kn) (n k) x (x-kz)^(k-1) (-x+kz)^(n-k)
+= sum(0kn) (-1)^(n-k) (n k) x * (x-kz)^(n-1)
+                                (binomial theorem requires n-1>=0)
+= sum(0kn) (-1)^(n-k) (n k) x * [sum(0 l n-1) (n-1 l) x^(n-1-l) k^l (-z)^l]
+  (interchange summation)
+= sum(0 l n-1) (n-1 l) x^(n-l) (-z)^l * [sum(0kn) (-1)^(n-k) (n k) k^l]
+                                         (= n! {l n} = 0 always by (53))
+= 0.
+
+
+
+
+
+1.2.6-51 --------------------
+
+sum(0kn) (n k) x (x-kz)^(k-1) (y+kz)^(n-k)
+= sum(0kn) (n k) x (x-kz)^(k-1) * (x+y + -x+kz)^(n-k)
+= sum(0kn) (n k) x (x-kz)^(k-1) * [sum(0 l n-k) (n-k l) (x+y)^(n-k-l) (-x+kz)^l]
+= sum(0kn, 0 l n-k) (n k) (n-k l)   x (x-kz)^(k-1) (x+y)^(n-k-l) (-x+kz)^l
+                    (use (20))
+= sum(0kn, 0 l n-k) (n l+k) (l+k k) x (x-kz)^(k-1) (x+y)^(n-k-l) (-x+kz)^l
+           (reindex l)
+= sum(0kn, kln)     (n l)   (l k) x (x-kz)^(k-1) (x+y)^(n-l) (-x+kz)^(l-k)
+  (interchange summation)
+= sum(0ln, 0kl)     ...
+= sum(0ln) (n l) (x+y)^(n-l) * [sum(0kl) (l k) x (x-kz)^(k-1) (-x+kz)^(l-k)]
+                               (= [l=0] by previous exercise)
+= (x+y)^n.
+
+
+
+
+
+1.2.6-54 --------------------
+
+The ij-entry of Pascal's triangle as a matrix is C(i,j).
+I claim that the ij-entry of the inverse is (-1)^{i+j}C(i,j).
+
+For the ij-entry of their product is
+
+sum(k) (-1)^{k+j} C(i,k) C(k,j)
+= C(i,j) sum(k) (-1)^{k+j} C(i-j,k-j)  (Eq 20)
+= C(i,j) sum(k') (-1)^l C(i-j,l)
+= C(i,j) (1-1)^{i-j}  (Binomial theorem)
+= [i=j]
+
+
+
+
+1.2.6-56 --------------------
+
+I list out the coefficients C(n,1), C(n,2) and C(n,3) as n varies:
+
+n  C(n,1) C(n,2) C(n,3)
+0       0      0      0
+1       1      0      0
+2       2      1      0
+3       3      3      1
+4       4      6      4
+5       5     10     10
+6       6     15     20
+7       7     21     35
+...   ...    ...    ...
+
+Suppose we have a number k = C(i,1)+C(j,2)+C(k,3) = (i,j,k) where
+i<j<k. Then the easiest way to represent k+1 would be (i+1,j,k), which
+would work if i+1<j. But if i+1=j then this is not a valid
+representation, though we can try out an alternative representation
+(0,j+1,k) via the addition formula. Again this works only if j+1<k,
+and if j+1=k we need to use yet another alternate representation
+(0,1,k+1).
+
+We just described an algorithm for determining the representation of
+k+1 given the representation of k. And obviously the representation of
+0 is (0,1,2), so we are done. For completeness I'll list out the
+representations of some small numbers:
+
+ 0 = 0+0+0,   1 = 0+0+1,   2 = 0+1+1,   3 = 1+1+1,
+ 4 = 0+0+4,   5 = 0+1+4,   6 = 1+1+4,   7 = 0+3+4,
+ 8 = 1+3+4,   9 = 2+3+4,  10 = 0+0+10, 11 = 0+1+10,
+12 = 1+1+10, 13 = 0+3+10, 14 = 1+3+10, 15 = 2+3+10,
+16 = 0+6+10, 17 = 1+6+10, 18 = 2+6+10, 19 = 3+6+10,
+20 = 0+0+20, 21 = 0+1+20, 22 = 1+1+20, 23 = 0+3+20
+
+
+
+
+
+1.2.6-60 --------------------
+
+Let <n k> to denote the number of k-combinations out of n-objects with
+repetitions. First, it helps to look at small values of k:
+
+1. Clearly there are only (n 1)=n 1-combinations.
+
+2. There are (n 2)+(n 1) 2-combinations. Either the 2-combination has
+two distinct elements (like ab) so there are (n 2) of them, or they
+are the same element repeated twice (like aa), so there are (n 1) of
+them.
+
+3. There are (n 3)+2(n 2)+(n 1) 3-combinations. The first and last
+terms handle the cases where the 3-combination has 3 distinct
+elements, or is the same element repeated thrice. The interesting bit
+is when there are 2 distinct elements, like a and b. When a and b are
+given, we can form 2 distinct 3-combinations, namely aab and abb. So
+that gives us 2(n 2) distinct 3-combinations with 2 distinct elements.
+
+By now, a clear pattern should emerge: the coefficients appearing in
+<n k> are binomial coefficients themselves! Now let's derive <n k> in
+general.
+
+Let Aki be the number of distinct k-combinations we can form given i
+letters a,b,..., such that each letter appears at least once.  We can
+check that it satisfies the following relations:
+
+Ak1 = 1,  Aki = 0 for k<i,
+Aki = A(k-1)(i-1) + A(k-2)(i-1) + ... + A1(i-1) for k>=i.
+
+These relations are enough to establish that Aki = (k-1 i-1). Thus
+
+<n k>
+= sum(1in) Aki (n i)
+= sum(1in) (k-1 k-i)(n i)
+= (n+k-1 k).
+
+--
+
+Side note: there's an alternative solution using a bijection. Given n
+boxes, you can allocate k identical balls into the boxes to obtain a
+configuration. For example, with n=4 and k=3 we might have the
+configuration
+
+oo _ _ o
+
+which corresponds to aad. Each configuration is identical to putting
+n-1 separators between each of the k balls:
+
+oo | | | o
+
+There are n+k-1 separators and objects in total, corresponding to
+n+k-1 slots. At each slot, one can insert either a separator or an
+object, yielding (n+k-1)! permutations. But since all separators and
+all objects are identical, the true number of configurations is
+(n+k-1)! / (n-1)!k! = (n+k-1 k).
+
+
+
+
+
+1.2.6-64 --------------------
+
+To establish that {n m} is the number of m-subset partitions of
+{1,...,n}, we handle the boundary conditions first:
+
+{n 1} = {n n} = 1, {n 0} = 0.
+
+Now, each partition of {1,...,n+1} into m subsets fall under two
+cases: either {n+1} is a subset by itself, or it is contained in a
+larger set in the partition. The former case gives us {n m-1}
+partitions. As for the latter case, note that every m-subset partition
+of {1,...,n} induces m possible partitions of {1,...,m+1} by adding
+n+1 to any one of the m partition sets. Thus this contributes
+m{n m} partitions. This establishes that the relation
+
+{n+1 m} = m{n m} + {n m-1}.
+
+
+
+
+
+1.2.6-67 --------------------
+
+Using the inequality
+
+k! >= k^k / e^(k-1)
+
+which was proved in 1.2.5-24, we get
+
+(n k)
+= n(n-1)...(n-k+1) / k!
+<= n^k e^(k-1) / k^k
+< (ne/k)^k.
+
+
+
+
+
+1.2.7-3 ---------------------
+
+H(m,r) <= 1 + (1 - 2^(m(1-r))) / (1 - 2^(1-r)),
+thus
+H(infty,r) <= 1 + 1/(1-2^(1-r)).
+
+
+
+
+
+1.2.7-5 ---------------------
+
+True to the spirit of the exercise, I will rawdog the computation
+without using any calculator or computer program.
+
+Let n=10^4 and recall that
+
+Hn = ln n + gamma + 1/(2n) + 1/(12n^2) - 1/(120n^4) - e,   0 < e < 1/(252n^6)
+
+We can ignore e and 1/(120n^4) because
+1/(252n^6) < 1/(120n^4) < 1/(10^18)
+is well within the allowance of 15 decimal places. Now to do the
+actual computation (using 20 decimal places just to be safe):
+
+ln 10          2.30258 50929 94045 68401
+             *                         4
+             ---------------------------
+ln 10000       9.21034 03719 76182 73604
+gamma        + 0.57721 56649 01532 86060
+             ---------------------------
+	       9.78755 60368 77715 59664
+1/(2n)       + 0.00005 00000 00000 00000
+             ---------------------------
+	       9.78760 60368 77715 59664
+1/(12n^2)    - 0.00000 00008 33333 33333
+             ---------------------------
+H10000         9.78760 60360 44382 26331.
+
+
+
+
+
+1.2.7-6 ---------------------
+
+One can directly apply the formulas
+
+[n+1 2] = n[n 2] + [n 1],  [n 1] = (n-1)!;
+
+but I'll instead derive the solution using Knuth's definition
+
+(x-0)(x-1)...(x-n) = [n+1 n+1]x^n - [n+1 n]x^(n-1) + ... +- [n+1 2]x^2 -+ [n+1 1]x +- [n+1 0].
+
+Comparing coeffs, we see that [n+1 2] is the sum over products of size
+n-1 subsets of {0,1,...,n}. This is equal to the sum over products of
+size n-1 subsets of {1,...,n}, which is equal to
+
+sum(1kn) n!/k.
+
+Thus Hn = [n+1 2]/n! as expected.
+
+
+
+
+
+1.2.7-7 ---------------------
+
+(a) By symmetry and induction we only need to prove that T(m+1,n) <= T(m,n).
+
+Indeed, the difference of RHS and LHS is
+
+1/(mn+1) + 1/(mn+2) + ... + 1/(m+1)n   - 1/(m+1)
+>= n * 1/(m+1)n - 1/(m+1)
+= 0.
+
+The maximum value of T(m,n) is T(1,1)=1. There is no minimum value,
+but I believe the limit of T(m,n) as m,n->infty is gamma, because for
+suff. large m,n we have
+
+Hm approx log m + gamma,
+Hn approx log n + gamma,
+H(mn) approx log m + log n + gamma.
+
+
+
+
+
+1.2.7-9 ---------------------
+
+Expand (n k) = (n k-1) + (n-1 k-1) and observe that a lot of
+cancellation happens. The answer should be -1/n.
+
+
+
+
+
+1.2.7-12 --------------------
+
+1/2^1000 is 0 up to 1000*log10(2) ~~ 300 places.
+
+Thus summing 1/2^1000 + 1/3^1000 + ... will clearly have no impact on
+the 100th decimal place. So H(infty,1000) = 1.000..0 up to 100 decimal
+places.
+
+
+
+
+
+1.2.7-13 --------------------
+
+Write (n k) = (n k-1) + (n-1 k-1).
+
+
+
+
+
+1.2.7-15 --------------------
+
+(1kn) Hk^2
+= (1kn)(1lk) [1/l (1mk) 1/m]
+= (1ln) [1/l (lkn)(1mk) 1/m]
+(the magic happens here!)
+= (1ln) [1/l * (1mn) (max(l,m) k n) 1/m]
+= (1ln) [(1ml)(lkn) 1/m + (l+1 m n)(mkn) 1/m] / l
+= (1ln) [(n-l+1)Hl + (n+1)(Hn-Hl) - (n-l)] / l
+= ...  (straightforward simplifications)
+= (n+1) Hn^2 - (2n+1) Hn + 2n.
+
+
+
+
+
+1.2.7-18 --------------------
+
+From numerical computations I have observed that the 2-valuation of
+sum(1 i 2n-1 odd) 1/i  (*)
+is equal to 2*(2-valuation of n), and we just need to prove this.
+
+Let n=m*2^k where m is odd. Define
+
+P(l) = prod(1 i 2^(k+1)-1 odd) l*2^(k+1)+i
+S(l) = sum(1 i 2^(k+1)-1 odd) P(l) / (l*2^(k+1)+i)
+     = sum(1 i 2^(k+1)-1 odd) prod(j, j!=i) l*2^(k+1)+j.
+
+Multiplying (*) through by (2n-1)!!, the resulting numerator is
+S(0) prod(0 l m-1 != 0) P(l)
++ S(1) prod(0 l m-1 != 1) P(l)
+...
++ S(m-1) prod(0 l m-1 != m-1) P(l)  (**)
+
+The 2-valuation remains the same if we were to express (*) as a
+simplified fraction, because the denominator (2n-1)!! is odd. Thus it
+suffices to prove the 2-valuation of (**) is 2k.
+
+My argument proceeded by establishing three facts:
+1. S(0) = 2^(2k) mod 2^(2k+1).
+2. P(l) = P(0) = odd mod 2^(2k+1).
+3. S(l) = S(0) mod 2^(2k+1).
+
+Thus for odd m, (**) is equal to
+m P(0)^(l-1) S(0) = 2^(2k) mod 2^(2k+1),
+which implies (**) is divisible by 2^(2k) but not 2^(2k+1), as
+desired.
+
+---
+
+The proof for 1 was kindly provided by a friend on Discord; it had the
+clever idea of rewriting
+
+S(0)
+= P(0) sum(1 i 2^(k+1)-1 odd) 1/i
+= P(0) sum(1 i 2^k-1     odd) [1/i + 1/(2^(k+1)-i)]
+= P(0) 2^(k+1) sum(1 i 2^k-1 odd) 1/i(2^(k+1)-i),
+
+Mod 2^k, the sum simplifies to -sum(i)1/i^2, where 1/i^2 is now viewed
+as the inverse of i^2 in (Z/2^kZ)*. This is equal to sum(i)i^2 by a
+bijection of the terms, and by induction this sum is 2^(k-1) mod
+2^k. Multiplying by P(0) 2^(k+1) gives 2^(2k) mod 2^(2k+1).
+
+The idea for 2 is to expand
+(l*2^(k+1) + 1) ... (l*2^(k+1) + 2^(k+1)-1)
+as a polynomial in l*2^(k+1), and then observe that (l*2^(k+1))^2 and
+higher powers are killed mod 2^(2k+1). Thus it is equal to
+
+P(0) + l*2^(k+1) S(0)
+= odd + l*2^(k+1) 2^(2k)
+= odd mod 2^(2k+1).
+
+3 uses the same basic idea: each term of S(l) (recall it is P(l) with
+one factor missing) is expanded as a polynomial in l*2^(k+1), and
+summing results mod 2^(2k+1) gives
+
+S(0) + l*2^(k+1) sum(2 i 2^(k+1)-1 odd) sum(1 j 2^(k+1)-1 odd, j!=i) P(0)/ij
+
+I show via a tedious argument that the double sum is 0 mod 2^k, thus
+the whole thing is S(0) mod 2^(2k+1).
+
+
+
+
+
+1.2.7-19 --------------------
+See integer-harmonic-numbers.pdf
+
+
+
+
+
+1.2.7-21 --------------------
+
+Let the sum be Sn. Then
+
+Sn
+= sum(i+j<=n+1) 1/(ij)
+= sum(i+j<=n) 1/(ij) + sum(i+j=n+1) i/(ij)
+= sum(1 k n-1) Hk/(n-k) + sum(1kn) 1/k(n+1-k)
+= S(n-1) + 1/(n+1) sum(1kn)[1/k + 1/(n+1-k)]
+= S(n-1) + 2Hn/(n+1).
+
+Thus
+Sn
+= 2 sum(1kn) Hk/(k+1)
+= 2 sum(1kn) [H(k+1) - 1/(k+1)] / (k+1)
+...
+= H(n+1)^2 - H(n+1,2).
+
+
+
+
+
+1.2.7-22 --------------------
+
+Let the sum be Sn. Then
+
+Sn
+= sum(0kn) Hk H(n-k)
+= sum(1 k n-1) Hk H(n-k)
+= sum(1 k n-1) Hk H(n-k-1) + sum(1 k n-1) Hk / n-k
+= S(n-1) + 2 sum(1 k n-1) Hk/(k+1)   (from previous exercise)
+
+Thus
+Sn
+= 2 sum(1kn) sum(1 l k-1) Hl/(l+1)
+= 2 sum(1 l n-1, l+1 k n) Hl/(l+1)
+= 2 sum(1 l n-1) (n+1 - (l+1))/(l+1) Hl
+= 2(n+1) sum(1 l n-1) Hl/(l+1)   -   2 sum(1 l n-1) Hl
+...
+= (n+1)(Hn^2 - H(n,2)) - 2(nH[n-1] + 1 - n)
+= (n+1)(Hn^2 - H(n,2)) - 2n(H[n] - 1).
+
+
+
+
+
+
+1.2.8-15 --------------------
+
+I'll show a systematic way to derive a closed form for an, which can
+also be applied to bn and cn. Then it is easy to express cn in terms
+of an and bn. (This method was my initial solution to 1.2.8-14, but it
+wasn't the same as Knuth's unfortunately.)
+
+From the recurrence, we know a priori that an is a sum of Fn and a
+linear combination of f(i)'s, where 0<=i<=n-2:
+
+an = Fn + sum(0 i n-2) A(n,i) f(i)   (*)
+
+Expanding out the expression a(n-2)+a(n-1)+f(n-2) using (*), we also
+have
+
+an = Fn + sum(0 i n-4) [A(n-2,i)+A(n-1,i)] f(i)
+        + A(n-1,n-3) f(n-3)
+        + f(n-2)    (**)
+
+Since f is an arbitrary function, we can assume that the coefficients
+in (*) and (**) are equal, thus we obtain the following relations on
+A(i,j):
+
+A(n,n-1) = 0,
+A(n,n-2) = 1,
+A(n,n-3) = A(n-1,n-3),
+A(n,i) = A(n-2,i) + A(n-1,i),  0<=i<=n-4.
+
+One can observe that A(i,j) depends only on i-j; thus A(n,n-k) = A'(k),
+where
+
+A'(1) = 0,
+A'(2) = 1,
+A'(k) = A'(k-2) + A'(k-1)
+=> A'(k) = F(k-1).
+
+Therefore A(n,n-k) = F(k-1), and subbing into (*) we get
+
+an = Fn + sum(0 i n-2) F(n-i-1) f(i).
+
+Similarly,
+
+bn = Fn + sum(0 i n-2) F(n-i-1) g(i),
+
+and
+
+cn = Fn + sum(0 i n-2) x*F(n-i-1) f(i) + sum(0 i n-2) y*F(n-i-1) g(i)
+   = x an + y bn - (x+y-1) Fn,
+
+as desired.
+
+
+
+
+
+1.2.8-17 --------------------
+
+Start with the identities
+
+F(-k-1)*Fn + F(-k)*F(n-1) = F(n-k),
+Fk*F(n+1) + F(k-1)*Fn = F(n+k),
+
+which can be shown via induction on k. This implies the matrix
+identities
+
+            (Fk     0)
+(F(n+1) Fn) (F(k-1) 1) = (F(n+k) Fn),
+
+
+(1       0  ) (Fn    )   (Fn    )
+(F(-k-1) F-k) (F(n-1)) = (F(n-k));
+
+thus
+
+(F(n+k) Fn    )   (1          0       ) (1 1)^n (Fk     0)
+(Fm     F(m-k)) = (F(m-n-k-1) F(m-n-k)) (1 0)   (F(k-1) 1),
+
+and the desired identity follows by taking determinants.
+
+
+
+
+
+1.2.8-18 --------------------
+
+Apply 1.2.7-17 with m=-n and k=1. (A rather surprising result!)
+
+
+
+
+
+1.2.8-19 --------------------
+
+Use the double-angle formula
+
+cos(2x) = 2cos^2(x) - 1
+
+and the relation
+
+cos(4pi/5) = -cos(pi/5)
+
+to deduce a quartic relation for cos(pi/5), which can be reduced to a
+quadratic relation. Solving for cos(pi/5) gives phi/2.
+
+
+
+
+
+1.2.8-21 --------------------
+
+Let S be sum(0kn) Fk x^k. Summing by parts:
+
+S
+= sum(0kn) (F(k+2)-F(k+1)) x^k
+= [F(n+2)x^(n+1) - F1 x^0] - sum(0kn) F(k+2) (x^(k+1) - x^k)   (*)
+
+Now, sum(0kn) F(k+2) x^(k+1) is equal to
+
+1/x * [S - F0 - F1 x + F(n+1)x^(n+1) + F(n+2)x^(n+2)]
+= S/x - 1 + F(n+1)x^n + F(n+2)x^(n+1),
+
+so (*) further simplifies to
+
+F(n+2)x^(n+1) - 1
+- S/x + 1 - F(n+1)x^n - F(n+2)x^(n+1)
++ S/x^2 - 1/x + F(n+1)x^(n-1) + F(n+2)x^n.
+
+Bringing S/x and S/x^2 to the other side we get
+
+(x^2+x-1)S / x^2 = Fn x^n + F(n+1)x^(n-1) - 1/x;
+
+thus
+
+S = [Fn x^(n+2) + F(n+1) x^(n+1) - x] / (x^2+x-1).
+
+This formula is only applicable when x^2+x-1!=0, i.e. when x is
+neither 1/phi or 1/phihat. In these cases, we can evaluate the sum
+using Binet's formula:
+
+sum(0kn) Fk/phi^k
+= 1/sqrt(5) sum(0kn) 1+r^k  (r=phihat/phi)
+= 1/sqrt(5) (n+1 + (r^(n+1)-1 / r-1)).
+
+Similarly,
+
+sum(0kn) Fk/phihat^k
+= 1/sqrt(5) ((s^(n+1)-1 / s-1) + n+1)  (s=phi/phihat).
+
+This is different from Knuth's solution, but I believe my solution is
+valid because it's a simple closed form.
+
+
+
+
+
+1.2.8-22 --------------------
+
+The induction argument used to prove this can be easily
+visualised. Imagine listing out nth Fibonacci numbers in a row
+starting from Fm:
+
+Fm F(m+1) ... F(m+n)
+
+Then sum(k)(n k)F(m+k) can be treated as a weighted sum of these
+terms. For n=1 we have
+
+Fm + F(m+1) => F(m+2)
+1    1
+
+For n=2 we have
+
+Fm + F(m+1) + F(m+2) => Fm + F(m+1)          => F(m+2) + F(m+3) => F(m+4)
+1    2        1         1    1                  1        1        
+                             F(m+1) + F(m+2)
+                             1        1
+
+For n=3 we have
+
+
+Fm + F(m+1) + F(m+2) + F(m+3) => Fm + F(m+1) + F(m+2)           => F(m+4) + F(m+5) => F(m+6)
+1    3        3        1         1    2        1                  
+                                      F(m+1) + F(m+2) + F(m+3)   
+                                      1        2        1       
+
+
+By induction we can extend this argument extends to any number of
+terms, thus the weighted sum is always a Fibonacci number.
+
+
+
+
+
+1.2.8-23 --------------------
+
+I use the same argument as 1.2.8-12. For n=1 we have
+
+Fm     + F(m+1) => F(m+t)
+F(t-1)   Ft
+
+For n=2 we have
+
+Fm       + F(m+1)   + F(m+2) =>         [Fm     + F(m+1)]          => F(t-1)F(m+t) + Ft F(m+t+1) => F(m+2t)
+F(t-1)^2   2F(t-1)Ft   Ft^2      F(t-1)  F(t-1)   Ft
+                                                [F(m+1) + F(m+2)]
+                                            Ft   F(t-1)   Ft
+
+For n=3 we have
+
+Fm       + F(m+1)      + F(m+2)      + F(m+3)
+F(t-1)^3   3F(t-1)^2Ft   3F(t-1)Ft^2   Ft^3
+
+
+              [Fm       + F(m+1)    + F(m+2)]
+      F(t-1)   F(t-1)^2   2F(t-1)Ft   Ft^2
+=> 
+                         [F(m+1)    + F(m+2)    + F(m+3)]
+     	             Ft   F(t-1)^2    2F(t-1)Ft   Ft^2
+
+
+=> F(t-1)F(m+2t) + Ft F(m+2t+1)
+
+=> F(m+3t).
+
+
+And so on.
+
+
+
+
+
+1.2.8-32 --------------------
+
+I will treat r as a remainder, i.e. 0<r<n. We can express F(mn+r) in
+terms of F(mn-r) mod Fn:
+
+F(mn+r)
+= Fr F(mn+1) + F(r-1) F(mn)
+= Fr F(mn+1)
+= Fr F(mn-1)
+= Fr [Fr F(mn-r) + F(r-1) F(mn-r-1)]
+= [F(r+1)F(r-1) - (-1)^r] F(mn-r) + FrF(r-1)F(mn-r-1)
+(determinant identity)
+= (-1)^(r+1) F(mn-r) + F(r+1)F(r-1)F(mn-r) + FrF(r-1)F(mn-r-1)
+= (-1)^(r+1) F(mn-r) + F(r-1) [F(r+1)F(mn-r) + FrF(mn-r-1)]
+= (-1)^(r+1) F(mn-r) + F(r-1) Fmn
+= (-1)^(r+1) F(mn-r).
+
+Then, by repeatedly subbing n-r for r (noting that 0<n-r<n still), we
+can derive the residues for m=1,2,3,...:
+
+F(n+r) = (-1)^(r+1) F(n-r)
+
+F(2n+r)
+= (-1)^(r+1) F(n+(n-r))
+= (-1)^(r+1) (-1)^(n-r+1) F(n-(n-r))
+= (-1)^n Fr
+
+F(3n+r)
+= (-1)^(r+1) F(2n+(n-r))
+= (-1)^(r+1) (-1)^n F(n-r)
+= (-1)^(n+r+1) F(n-r)
+
+F(4n+r)
+= (-1)^(r+1) F(3n+(n-r))
+= (-1)^(r+1) (-1)^(n+(n-r)+1) F(n-(n-r))
+= Fr
+
+and so on.
+
+
+
+
+
+1.2.8-35 --------------------
+
+Let x be a number. We can construct a representation in the phi number
+system as follows:
+
+1. kth digit = 1, where k is the largest power of phi <= x
+2. lth digit = 1, where l is the largest power of phi <= x-phi^k
+3. mth digit = 1, where m is the largest power of phi <= x-phi^k-phi^l
+...
+
+Note that this construction guarantees no two adjacent 1s: if x =
+phi^k + phi^(k-1) + ... then x = phi^(k+1) + ..., contradicting point
+1 of the construction. Thus it remains to prove this is the unique
+representation with no infinite trailing 01010101...; put in another
+way, the substring 00 appears arbitrarily far down the expansion.
+
+To see this, note that the representation of x can be expressed as a
+regex
+
+x = 1(01)*00[01]*
+
+If k-l>2 then the (01)* group is empty; the first 3 digits of the
+representation are thus uniquely determined; now replace x with the
+[01]* group and carry out the same argument. Note that the condition
+of no infinite trailing 01010101... guarantees that no matter how many
+digits we chop off from x, it still follows the regex 1(01)*00[01]*.
+
+Otherwise k-l=2 and the group is nonempty, and a priori it might be
+infinite (meaning the 00 never actually appears). But in that case, x
+is equal to
+
+phi^k + phi^(k-2) + phi^(k-4) + ...
+= phi^k / (1 - phi^-2)
+= phi^(k+1),
+
+contradicting point 1 of the construction. Thus the group is not
+infinite, and consequently the 1(01)*00 portion is uniquely
+determined. We can remove these digits, and carry out the same
+argument.
+
+
+
+
+
+1.2.8-36 --------------------
+
+The kth letter of Sn is the last letter of Sl where Fl is the smallest
+digit in the Zeckendorf representation of k. (This can be seen by
+recursively writing Sn=S(n-1)S(n-2).) The last letter of Sl is `a` if
+l odd and `b` if l even.
+
+
+
+
+
+1.2.8-40 --------------------
+
+I show by induction on n that f(n)=m whenever Fm<n<=F(m+1). The
+generic situation can be visualised as follows:
+
+0           k                    n-k          n
+|           o                     o           |
+... -- --- ----- -------- ------------- --------------------- 
+                 F(m-2)   F(m-1)        Fm 
+
+By the induction hypothesis, we know that the horizontal line Fl
+(i.e. numbers from Fl+1 to F(l+1)) maps to l; for the last line, we
+only consider up to n. The problem of minimizing max(1+f(k), 2+f(n-k))
+across all k, can be reframed as a problem of "nudging" both dots onto
+short lines.
+
+Let {k,n-k}={c,d}, and let C,D be the lines that they lie on. We have
+min(C,D) >= m-2, otherwise n=c+d is too small. This gives a lower
+bound of m on the min. Furthermore, the lower bound is attained with
+k=Fm, since n-k<=F(m-1) and thus max(1+f(k),2+f(n-k)) = m.
+
+
+
+
+
+1.2.9-15 --------------------
+
+sum(n) sum(0kn) (n-k k)z^k w^n
+= sum(k) z^k sum(n>=k) (n-k k) w^n
+= sum(k) z^k w^k sum(n>=0) (n k) w^n
+= sum(k) z^k w^(2k) sum(n>=0) (n k) w^(n-k)
+= sum(k) (zw^2+w-w)^k 1/k! d^k/dw^k 1/(1-w)
+(Taylor series of 1/(1-w) centered at w)
+= 1/(1-w-zw^2).
+
+(Knuth's derivation of this closed form is shorter; he uses a
+recurrence via addition theorem on (n-k k).)
+
+The rest of the solution is factorising the quadratic -zw^2-w+1 and
+then using partial fraction decomposition. For the special case z=-1/4
+the partial fraction decomposition is different:
+
+1/(1-w+w^2/4) = 1/(1-w/2)^2
+
+Thus Gn(-1/4)
+= [w^n] 1/(1-w/2)^2
+= sum(0kn) (1/2)^k (1/2)^(n-k)
+= (n+1) / 2^n.
+
+
+
+
+
+1.2.9-24 --------------------
+
+Let an=[z^n]G(z), with a(-1)=1. Then
+
+[z^n](1+zG(z))^m
+= sum(c1,...,cm>=0, sum to n) a(c1-1) ... a(cm-1)
+
+(split by cases: how many ci's are 0)
+
+=   (m 0) sum(c1=...=cm=0)
+  + (m 1) sum(c2=...=c(m-1)=0, c1>0 sum to n)
+  + (m 2) sum(c3=...=c(m-1)=0, c1,c2>0 sum to n)
+  + ...
+  + (m m) sum(c1,...,cm>0 sum to n)
+
+=   (m 0)
+  + (m 1) sum(d1>=0 sum to n-1) a(d1)
+  + (m 2) sum(d1,d2>=0 sum to n-2) a(d1)a(d2)
+  + ...
+  + (m m) sum(d1,...,dm>=0 sum to n-m) a(d1)a(d2)...a(dm)
+
+= sum(k) (m k) [z^(n-k)] G(z)^k.
+
+
+
+
+
+1.2.10-7 --------------------
+
+For each sequence S of X[1] X[2] ... X[n], we can extract the
+subsequence S' formed by the first occurrences of each of the m
+distinct values. The quantity A (the number of updates of the maximum)
+is equal for S and S', and each S' comes from the same number of
+Ss. Thus the probability of A being k (for the sequence S) is p_mk =
+[n k+1]/n! as shown in the text.
+
+
+
+
+
+1.2.10-9 --------------------
+
+{n m} is the number of ways to partition n objects into m
+subsets. Multiplying by (M m)m! (the number of ways to label the
+subsets in each partition) gives the answer.
+
+
+
+
+
+1.2.10-12 -------------------
+
+Note that
+
+G(e^t) = 1 + M1/1! t + M2/2! t^2 + M3/3! t^3 + ...
+
+whereas by definition of kn,
+
+ln G(e^t) = k0 + k1/1! t + k2/2! t^2 + k3/3! t^3 + ...
+
+Arbogast's formula lets us derive the semi-invariants from the
+moments. To derive the semi-invariants from the central moments,
+consider the sum
+
+1 + m1/1! t + m2/2! t^2 + ...
+= sum(n) [sum(k) (k-M1)^n pk]/n! t^n
+= sum(k) pk sum(n) (k-M1)^n t^n / n!
+= sum(k) pk e^(t(k-M1))
+= e^(-tM1) G(e^t).
+
+If we denote this function by H(e^t), we have
+
+ln G(e^t) = ln H(e^t) + ln e^(tM1).
+
+The first semi-invariant of e^(tM1) is M1 and the rest are 0. As for
+H, its semi-invariants can be expressed in terms of the central
+moments by the same complicated formula, with Mi replaced by mi, and
+m1 = 0.
+
+
+
+
+
+1.2.10-17 -------------------
+
+c. Let m, v denote mean and variance.
+
+m(gf) = g'(f(1)) f'(1) = mf mg
+
+v(gf) - mf mg + (mf mg)^2
+= g''(f(1)) f'(1)^2 + g'(f(1)) f''(1)
+= (vg - mg + mg^2) mf^2 + mg (vf - mf + mf^2),
+
+thus
+v(gf) = vg mf^2 + mg vf.
+
+
+
+
+
+1.2.10-19 -------------------
+
+If ak is a left-to-right maximum, then 1 ... k-1 maps into 1 ... ak-1
+under a. Thus no element of ak+1 ... n maps into 1 ... k-1 under b, so
+it must map into k+1 ... n. Thus b(ak) = k is a right-to-left minimum.
+
+
+
+
+
+1.2.10-20 -------------------
+
+max{ai-bi} is equal to max{ai-bi, bi-ai}.
+
+mL calculates max{ai-bi}. For if k is not a left-to-right maximum,
+then there exist some left-to-right maximum l<k with al>=ak and
+bl<=bk, thus al-bl>=ak-bk. Likewise, mR calculates max{bi-ai}.
+
+
+
+
+
+1.2.10-21 -------------------
+
+From the tail inequality we have
+
+Pr(X >= n(p+e))
+<= [x^-(p+e) (q+px)]^n
+= [q/x^(p+e) + p/x^(e-q)]^n
+= f(x)^n
+
+We can ditch the nth power, so that exp(-e^2/2q) is now our desired
+upper bound. Observe that the case e>q is trivial since f(x)->0 as
+x->infinity. If e<q, then f(x) decreases to a minimum (dominated by
+the 1/x^(p+e) term) and then increases without bound (dominated by
+1/x^(e-q)). It is sensible to choose x that gives the minimum value,
+which turns out to be
+
+x = q(p+e)/p(q-e).
+
+The corresponding minimum value is
+
+(p/(p+e))^(p+e) (q/(q-e))^(q-e)   (*)
+
+We have
+
+(p+e) ln(1 - e/(p+e))
+= (p+e) (-e/(p+e) - e^2/2(p+e)^2 - ...)
+<= -e
+
+and
+
+(q-e) ln(q/(q-e))
+<= (q-e) (e/q + e^2/2q^2 + ...)
+= e + (1/2-1/1) e^2/q + (1/3-1/2) e^3/q^2 + ...
+<= e - e^2/2q
+
+Thus (*) <= exp(-e^2/2q).
+
+Lastly if e=q, then f(x) continuously decreases to p, and fortunately
+p < exp(-e^2/2q) = exp((p-1)/2) for 0<=p<1.
+
+
+
+
+
+1.2.10-22 -------------------
+
+a. Pr(X >= mu*r)
+<= x^(-mu*r) prod(qi+pi*x)
+
+The sum of qi+pi*x is n+mu(x-1), thus by AM-GM the expression is
+
+<= x^(-mu*r) (1 + mu(x-1)/n)^n
+<= x^(-mu*r) e^mu(x-1)
+
+Setting x=r gives the desired bound. Pr(X <= mu*r) is handled in
+exactly the same way.
+
+
+c. P(X >= mu*r)
+<= x^(-mu*r) (1+x)^n
+<= x^(-mu*r) e^(nx).
+
+Set x=3, and note that e^(nx) is a constant.
+
+
+
+
+
+1.2.11.3-7 ------------------
+
+e^-u (1+u/x)^x
+= exp(-1/2 u^2/x + 1/3 u^3/x^2 - 1/4 u^4/x^3 + ...)   (*)
+
+Expanding out the exp gives us a sum of terms of the form
+const * u^i/x^j.
+Integrating wrt u gives a sum of terms of the form
+const * u^(i+1)/x^j,
+which is O(x^-2) whenever j - (i+1)/4 >= 2, or 4j-i>=9.
+
+Thus (*) expanded out to terms O(x^-2) is
+
+= 1
++ 1/1  (- 1/2  u^2/x   + 1/3 u^3/x^2 - 1/4 u^4/x^3)
++ 1/2  (+ 1/4  u^4/x^2 - 2/6 u^5/x^3              )
++ 1/6  (- 1/8  u^6/x^3                            )
++ 1/24 (+ 1/16 u^8/x^4                            );
+
+integrating gives
+
+= yx^(-1/4)
++ 1/1  (- 1/6   y^3 x^(-1/4) + 1/12 y^4 x^-1     - 1/20 y^5 x^(-7/4))
++ 1/2  (+ 1/20  y^5 x^(-3/4) - 2/36 y^6 x^(-6/4)                    )
++ 1/6  (- 1/56  y^7 x^(-5/4)                                        )
++ 1/24 (+ 1/144 y^9 x^(-7/4)                                        ).
+
+
+
+
+
+1.2.11.3-8 ------------------
+
+The solution given is rather advanced and I have not digested
+it. However, if we assume that r<=1/2, there is an easy argument
+generalising the previous exercise.
+
+A term u^i/x^j in the expansion of (*) is O(x^-s) whenever j - r(i+1)
+>= s. Thus, u^(k+1)/x^l = O(x^r) whenever u^k/x^l is obtained by a
+product of terms u^(i+1)/x^i. This is because k=l+p where p<=l,
+implying that
+
+l-r(k+1) >= l-r(2l+1) = l(1-2r) - r >= -r  (since r<=1/2).
+
+For each term in (*) containing u^(m+1)/x^m (the first omitted term in
+(*)) as a factor, it has the form u^(m+k+1)/x^(m+l), which is
+O(u^(m+1)/x^m * x^r) = O(x^-a),
+where
+a = m-r(m+1)-r = m(1-r)-2r >= s.
+
+Thus the terms u^(m+1)/x^m and beyond are not needed in the expansion.
+
+
+
+
+
+1.2.11.3-16 -----------------
+
+This question was extremely annoying because 1.2.6-(53) doesn't make
+sense when n<0 (since 0^n is undefined). Thus the sum has to be split
+up in such a way that this case doesn't occur.
+
+sum(k) (-1)^k (n k) k^(n-1) Q(k)
+                                         | note how n was used instead of k
+            				 v to reduce the dependence
+
+= sum(0kn) (-1)^k (n k) k^(n-1) * [sum(1ln) k^l`/k^l]
+
+= sum(0kn) (-1)^k (n k) k^(n-1) * [sum(1ln) k^l`/k^l  +  n!/n^n * [k=n]]
+
+= sum(0kn) (-1)^k (n k) k^(n-1) * [sum(1 l n-1, m0l) (-1)^m [l m] k^(m-l)]
++ (-1)^n (n n) n^(n-1) n!/n^n
+
+= (-1)^n (n-1)!                                              v note how this is always >=0
++ sum(1 l n-1, m0l) (-1)^m [l m] * [sum(0kn) (-1)^k (n k) k^(n-1-(l-m)]
+
+= (-1)^n (n-1)!                        v always 0
++ sum(1 l n-1, m0l) (-1)^m [l m] * n! {n-1-(l-m) n}
+
+= (-1)^n (n-1)!
+
+
+
+
+
+1.2.11.3-19 -----------------
+
+Let I(a,b,n) = int(a to b) e^(-nx) f(x) dx.
+
+On one hand,
+|I(0,r,n)| <= M * Gamma(a+1) / n^(a+1),
+which decays polynomially in n.
+
+On the other hand,
+|I(r,infty,n+1)| <= e^(-r) |I(r,infty,n)|,
+thus I(r,infty,n) decays exponentially in n.
+
+Therefore, for large n, I(0,infty,n) is dominated by I(0,r,n) which is
+O(n^-(a+1)).
+
+
+
+
+
+1.3.1-8 ---------------------
+
+I will first explain the division example in the text, then use the
+method to solve the exercise.
+
+The example goes:
+rAX     -  0 0 0 0 0 1235 0 3 1
+  /     -             0 0 0 2 0
+===============================
+ rA                +  0 617 ? ?
+ rX                -  0 0 0 ? 1
+
+Letting b be the byte size, this can be expressed as a statement about
+polynomial division:
+
+1235b^3 + 3b + 1  /  2b
+= 617b^2 + b^2/2 + 1 + 1/2 + 1/2b.
+
+Depending on the parity of b, the value of rA is either
+617b^2+(b^2+1)/2+1 or 617b^2+b^2/2+1. Since b>=64, the sum of the last
+two terms is surely less than b^2, so we know rA up to three
+significant bytes.
+
+On the other hand, the remainder is either 1 or b+1, so rX is either
+- 0 0 0 0 1 or - 0 0 0 1 1.
+
+---
+
+The exercise has rX initially equal to `- 1234 0 3 1`. The quotient is
+617b^2+1+1/2+1/2b, which has integer part 617b^2+1. Thus rA is
+`+ 0 617 0 1`; the remainder is b+1 so rX is `- 0 0 0 1 1`.
+
+
+
+
+
+1.3.2-11 --------------------
+
+I'll only elaborate on one part of the solution, namely the
+observation that the value of a saddle point A is unique. (Of course
+Knuth gives a proof, but I want to present my own.) Suppose B is
+another saddle point. If B lies on the row and column as A, then the
+claim is clearly true. Otherwise, we have the following arrangement:
+
+    .     .
+    .     .
+... b ... B ...
+    .     .
+    .     .
+    .     .
+... A ... a ...
+    .     .
+    .     .
+
+By repeatedly applying either the minimum or maximum condition of
+a saddle point, we have
+B <= b <= A <= a <= B.
+
+
+
+
+
+1.3.3-13 --------------------
+
+The array storing the perm pi can be visualised as a directed graph
+whose edges are labelled + or -. Initially, all edges are - and they
+form cycles. Since Algorithm J modifies each cycle separately, we
+assume WLOG that the perm is a single cycle.
+
+Algorithm J progressively creates + edges such that the following
+properties are preserved:
+
+        +
+a. If A -> B is an edge then B = pi(A).
+
+b. If there is a chain of + edges followed by an - edge,
+
+      +         +      +     -
+   An -> A(n-1) -> ... -> A0 -> B,
+
+   then B = pi^(n+1)(A). Note that n=0 is a special case.
+
+        -                                       -
+c. If A -> B, there exists some C and an edge B -> C.
+   (It is possibly equal to A or B.)
+
+
+The + edges are created in this manner:
+
+1. Choose a node A that wasn't chosen previously. By the following
+   steps, A will be guaranteed to be the first element An of a chain in
+   property (a).
+
+2. Traverse the chain of + edges to find the node A0.
+   (This is step 3 of Algorithm J.)
+
+                       -
+3. There is an edge A0 -> B. By property (c) there also exists an edge
+
+     -
+   B -> C. Replace the edges
+
+      +         +      +     -    -
+   An -> A(n-1) -> ... -> A0 -> B -> C
+
+   with
+                                -
+                             ________.
+                            /        |
+      +         +      +   /         v
+   An -> A(n-1) -> ... -> A0    B    C.
+    ^                          /
+    |_________________________/
+                +
+
+   (This is step 4.)
+
+   In effect, one of the + chain's has been extended. It is a
+   straightforward verification that the three properties are indeed
+   preserved.
+
+   (Also note that in Step 1, Algorithm J chooses the nodes in a
+   specific order, namely in decreasing order of their numerical
+   value. In fact that there is nothing special about this order, and
+   it is consistent with the steps I've given.)
+
+4. When there is one - edge left, the cycle will look like
+
+                            __
+      +         +      +   |  |
+   An -> A(n-1) -> ... -> A0  | -
+                           ^  |
+			   |__|
+
+   Replace the - edge with a + edge from A0 to An. Then the inversion
+   of the cycle is complete.
+
+
+
+
+
+1.3.3-18 --------------------
+
+Let Pnkm = n! p(nkm), the number of perms with exactly k m-cycles. Then
+
+Pnkm = (n km) (km!) / m^k k! * P(n-km)0m,  (*)
+
+because we can choose the km elements involved in the cycles and
+permute them subject to two symmetries (permutations of the k cycles
+and cyclic permutations within the cycles), then we have to ensure
+that the remaining n-km elements don't form any m-cycles.
+
+The quantity Pn0m can be found via inclusion-exclusion. If Sc is the
+set of perms containing the m-cycle c, then
+
+                          (n-km)! if ci's are disjoint
+S(c1) cap ... cap S(ck) =
+                          0       otherwise
+
+Thus,
+
+sum(i1<...<ik) |S(c(i1)) cap ... cap S(c(ik))|
+= (n-km)! #(disjoint k-tuples of m-element sets) (m-1)!^k
+= (n-km)! 1/k! n!/m!(n-m)! ... (n-(k-1)m)!/m!(n-km)! (m-1)!^k
+(a lot of terms cancel out)
+= n!/k!m^k.
+
+Thus
+
+Pn0m = n!(1 - 1/m + 1/2m^2 - 1/6m^3 + ... +- 1/l!m^l),   l = floor(n/m).
+
+Plugging in P(n-km)0m into (*) above, we have
+
+Pnkm = n!/k!m^k * sum(0 l floor(n/m)-k) (-1)^l/l!m^l.
+
+Copying the derivation of (27), we find that
+
+         sum(0 l floor(n/m)) (z/m-1)^l/l!  if m>=n,
+Gnm(z) =
+         0                                 otherwise.
+
+indeed the kth coefficient is
+
+sum(k l floor(n/m)) (-1)^(l-k)(l k) / l!m^k
+= sum(k l floor(n/m)) (-1)^(l-k) / k!(l-k)!m^k
+= 1/k!m^k [1 - 1/m + ... +- 1 / (floor(n/m)-k)! m^(floor(n/m)-k)].
+
+Now, observe that
+
+Gnm'(z)
+= 1/m sum(0 l floor(n/m)-1) (z/m-1)^l/l!
+= 1/m sum(0 l floor(n-m / m)) (z/m-1)^l/l!
+= 1/m G(n-m)m(z),
+
+therefore we can deduce
+
+          0   if m<n
+Gnm'(1) =
+          1/m otherwise
+
+
+           0     if m<2n
+Gnm''(1) =
+           1/m^2 otherwise.
+
+The first equation gives us the mean, and the variance can be deduced
+from both equations to be
+
+           0         if m<n,
+variance = (m-1)/m^2 if n<=m<2n,
+           1/m       if m>2n.
+
+
+
+
+
+1.3.3-28 --------------------
+
+Form a circle with the n men. Rotate it m-1 steps to map the 1st
+executed man to the 1st position; this is the perm
+(n n-1 ... 1)^(m-1).
+Now keep that man fixed, and rotate the remaining circle m-1 steps to
+map the 2nd man to the 2nd position; this is the perm
+(n n-1 ... 2)^(m-1).
+Repeat this until everyone is dead.
+
+
+
+
+
+1.3.3-30 --------------------
+
+Clearly the fixed element cannot be an even number. Thus it suffices
+to study the behaviour of the perfect shuffle permutation f on odd
+numbers.
+
+1 -> n+1, 3 -> n+2, ..., 2n-1 -> 2n.
+
+From 1.3.3-29 we know that the Josephus perm can be deduced from
+this. In particular, the (2k-1)th man is executed at time f^d(2k-1)/2,
+where d is the smallest number with f^d(2k-1) even. Thus the fixed
+elements correspond to k such that f^d(2k-1) = 4k-2 for some d. To
+solve this equation, we can extend f to the linear function
+
+F(x) = n + (x+1)/2  on [1,2n).
+
+(F and f do not agree on even numbers, but we are not going to
+evaluate F on even numbers anyway; they are the "destination" telling
+us when the man is executed.) Then a little algebra shows that
+
+f^d(x) = 2x  simplifies to  x = (2^d-1)(2n+1) / 2^(d+1)-1.
+
+
+
+
+
+1.3.3-32 --------------------
+
+The main observation is that if pi contains two cycles
+
+   ________                _________
+  |        \              |         \
+  v         \             v          \
+... -> a -> ...   and   ... -> b -> ...
+
+then (a b)pi looks like the single cycle
+
+   ___________
+  |           \
+  v            \
+... -> a -  -> ...
+          \/
+	  /\
+... -> b -  -> ...
+  ^            /
+  |___________/
+
+
+Thus to make pi a single cycle, we just have to apply the
+transposition (a a+1) whenever a and a+1 lie in different cycles. A
+permutation of the form rho is sufficient for that.
+
+
+
+
+
+1.4.3.2-5 -------------------
+
+Let the two tracing routines be S and T. S will be tracing the
+instructions of T, with the additional twist that the instructions of
+S are themselves being traced by T. So T will be the "top-level"
+tracing routine. We know that at each iteration of the tracing loop in
+S, an instruction from T will be executed. But since S is traced by T,
+that instruction is in reality being executed within T. Thus we run
+into the same issue as 1.4.3.2-4: a tracing routine executing an
+instruction from itself that clobbers its own memory, resulting in an
+infinite loop.
+
+
+
+
+
+1.4.4-16 --------------------
+
+As a concrete example, I wrote a program that negates 100 blocks from
+tape unit 0 and outputs to tape unit 1.
+
+* Registers:
+* NEXTP is ahead of NEXTG by rI6 buffers
+* NEXTR is ahead of NEXTP by rI5 buffers
+* NEXTG is ahead of NEXTR by rI4 buffers
+* rI2 is number of words processed in the buffer NEXTG
+* rI1 keeps track of number of blocks input so far
+U	EQU	0
+V	EQU	1
+BEGIN	IN	BUF1(U)		Read the first block.
+	JBUS	*(U)
+	ENT6	1
+	ENT5	3
+	ENT4	0
+	ENT1	99
+COMP1	JMP	ASSIGN
+	LDA	NEXTG
+	STA	1F(0:2)
+	STA	2F(0:2)
+	ENT2	99
+1H	LDAN	*,2		Negate the word.
+2H	STA	*,2
+	DEC2	1
+	JRED	COMPIN(U)
+	JRED	COMPOUT(V)
+	J2NN	1B		Done with block?
+	JMP	RELEASE
+	JMP	COMP1
+*
+ASSIGN	STJ	8F
+	J6NZ	8F		Has computation caught up to input?
+	JRED	COMPIN(U)	If yes, do input instead.
+	JMP	*-2
+8H	JMP	*		Otherwise, then we will continue computing.
+*
+RELEASE STJ	7F
+	DEC6	1		Update pointer distances.
+	INC4	1
+	LD3	NEXTG		Advance NEXTG.
+	LD3	100,3
+	ST3	NEXTG
+7H	JMP	*
+*
+1H	JMP	INCOMP
+IN1	J1Z	3F		Have all blocks been read?
+	J5NZ	2F		Has input caught up to output?
+3H	JRED	INOUT(V)	If yes to either, do output instead.
+	JMP	1B
+2H	LD3	NEXTP
+	ST3	4F(0:2)
+4H	IN	*(U)		Read a block.
+	JMP	INCOMP
+	DEC5	1		Update pointer distances.
+	INC6	1
+	LD3	NEXTP
+	LD3	100,3		Advance NEXTP.
+	ST3	NEXTP
+	DEC1	1		A block has been read.
+	JMP	1B
+*
+1H	JMP	OUTCOMP
+OUT1 	J1NZ	*+4		If all blocks have been read
+	J6NZ	*+3		  and computed,
+	J4NZ	*+2		  and outputted,
+DONE	HLT	0		  we are done.
+	J4NZ	2F		Has output caught up to computation?
+	JMP	1B		If yes, do computation instead.
+2H	LD3	NEXTR
+	ST3	4F(0:2)
+4H	OUT	*(V)		Output a block.
+	JMP	OUTCOMP
+	DEC4	1		Update pointer distances.
+	INC5	1
+	LD3	NEXTR
+	LD3	100,3		Advance NEXTR.
+	ST3	NEXTR
+	JMP	1B
+* Coroutine linkage
+INCOMP	STJ	INX
+COMPX	JMP	COMP1
+OUTCOMP	STJ	OUTX
+	JMP	COMPX
+COMPIN	STJ	COMPX
+INX	JMP	IN1
+OUTIN	STJ	OUTX
+	JMP	INX
+COMPOUT	STJ	COMPX
+OUTX	JMP	OUT1
+INOUT	STJ	INX
+	JMP	OUTX
+* Constants
+ONE	CON	1
+BUF1	ORIG	*+100
+	CON	*+1
+BUF2	ORIG	*+100
+	CON	*+1
+BUF3	ORIG	*+100
+	CON	*+1
+BUF4	ORIG	*+100
+	CON	BUF1
+NEXTP	CON	BUF2
+NEXTG	CON	BUF1
+NEXTR	CON	BUF1
+	END	BEGIN

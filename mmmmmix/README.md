@@ -25,6 +25,7 @@ The most basic task is to run a program as-is. This can be done by typing `g` in
 | `g`, `g2`, `g+` | Run with different levels of tracing |
 | `r` | View register contents |
 | `t` | View timing statistics |
+| `a0-50` | Perform runtime analysis |
 
 Also, many MIXAL programs involve I/O, and we need to specify where to read the input and write the output. In my implementation, I represent I/O devices like cards and tapes as plain text files. Each file is essentially a sequence of words encoded with MIX's character set. For specifics, look at "Card format" and "Tape format".
 
