@@ -480,9 +480,9 @@ void timecommand(mmmstate *mmm) {
   }
 }
 
-bool onestepwrapper(int tracecount, mmmstate *mmm) {
+bool onestepwrapper(int tracemax, mmmstate *mmm) {
   int execcount = mmm->mix.execcounts[mmm->mix.PC];
-  if (execcount < tracecount) {
+  if (execcount < tracemax) {
     if (!mmm->shouldtrace) {
       printf("----------------------------------------------------------------------------------------------\n");
       mmm->shouldtrace = true;
@@ -493,7 +493,7 @@ bool onestepwrapper(int tracecount, mmmstate *mmm) {
     mmm->shouldtrace = false;
   }
   onestep(&mmm->mix);
-  if (mmm->mix.err[0] != '\0') {
+  if (mmm->mix.err) {
     printf(RED("Emulator stopped at %d: %s\n"), mmm->mix.PC, mmm->mix.err);
     return false;
   }
@@ -606,38 +606,59 @@ void breakpointcommand(char *arg, mmmstate *mmm) {
   displayinstr_debug(bp, mmm);
 }
 
+void stepcommand(mmmstate *mmm) {
+  if (mmm->mix.done) {
+    printf(GREEN("Program has finished running with exit code %d; type l to reset\n"), mmm->mix.exitcode);
+    return;
+  }
+  onestepwrapper(0, mmm);
+  displayinstr_debug(mmm->mix.PC, mmm);
+}
+
 void gocommand(char *arg, mmmstate *mmm) {
-  int tracecount;
+  int tracemax;
   if (isdigit(arg[0]))
-    tracecount = arg[0] - '0';
+    tracemax = arg[0] - '0';
   else if (arg[0] == '+')
-    tracecount = 2147483647;
+    tracemax = 2147483647;
   else
-    tracecount = 0;
+    tracemax = 0;
   mmm->shouldtrace = true;
   while (!mmm->mix.done)
-    onestepwrapper(tracecount, mmm);
+    onestepwrapper(tracemax, mmm);
   printf(GREEN("Program has finished running with exit code %d; type l to reset\n"), mmm->mix.exitcode);
 }
 
-bool loadcardfile(char *filename, mmmstate *mmm) {
-  if (filename[0] == '\0')
-    return true;
+bool loadcardreaderfile(char *filename, mmmstate *mmm) {
+  if (filename[0] == '\0') return true;
   FILE *fp;
   if ((fp = fopen(filename, "r")) == NULL) {
-    printf(RED("Could not open card file %s\n"), filename);
+    printf(RED("Could not open card reader file %s\n"), filename);
     return false;
   }
-  printf(GREEN("Loaded card file %s\n"), filename);
-  if (mmm->mix.cardfile)
-    fclose(mmm->mix.cardfile);
-  mmm->mix.cardfile = fp;
+  printf(GREEN("Loaded card reader file %s\n"), filename);
+  if (mmm->mix.cardreaderfile)
+    fclose(mmm->mix.cardreaderfile);
+  mmm->mix.cardreaderfile = fp;
+  return true;
+}
+
+bool loadcardpunchfile(char *filename, mmmstate *mmm) {
+  if (filename[0] == '\0') return true;
+  FILE *fp;
+  if ((fp = fopen(filename, "w")) == NULL) {
+    printf(RED("Could not open card punch file %s\n"), filename);
+    return false;
+  }
+  printf(GREEN("Loaded card punch file %s\n"), filename);
+  if (mmm->mix.cardpunchfile)
+    fclose(mmm->mix.cardpunchfile);
+  mmm->mix.cardpunchfile = fp;
   return true;
 }
 
 bool loadtapefile(char *filename, int n, mmmstate *mmm) {
-  if (filename[0] == '\0')
-    return true;
+  if (filename[0] == '\0') return true;
   if (n < 0 || n > 7) {
     printf(RED("Invalid tape number %d\n"), n);
     return false;
@@ -747,7 +768,7 @@ void exportcommand(mmmstate *mmm) {
   printf(GREEN("Saved program into program.cards.\n"));
 }
 
-void printhelp() {
+void helpcommand() {
   printf(
     CYAN("COMMANDS:\n")
     "<empty>\t\trepeat previous command\n"
@@ -774,11 +795,19 @@ void printhelp() {
   );
 }
 
+void quitcommand(mmmstate *mmm) {
+  if (mmm->mix.cardreaderfile) fclose(mmm->mix.cardreaderfile);
+  if (mmm->mix.cardpunchfile) fclose(mmm->mix.cardpunchfile);
+  for (int i = 0; i < 8; i++) {
+    if (mmm->mix.tapefiles[i]) fclose(mmm->mix.tapefiles[i]);
+  }
+}
+
 void initmmmstate(mmmstate *mmm) {
   // mmm->mix will be initialized in loadmixalfile()
-  mmm->globalcardfile[0] = '\0';
+  mmm->cardreaderfile[0] = '\0';
   for (int i = 0; i < 8; i++)
-    mmm->globaltapefiles[i][0] = '\0';
+    mmm->tapefiles[i][0] = '\0';
   mmm->prevline[0] = '\0';
   for (int i = 0; i < 4000; i++)
     mmm->debuglines[i][0] = '\0';
@@ -788,6 +817,7 @@ void initmmmstate(mmmstate *mmm) {
   mmm->mix.INtimes[CARDREADER] = 10000;
   mmm->mix.IOCtimes[LINEPRINTER] = 10000;
   mmm->mix.OUTtimes[LINEPRINTER] = 7500;
+  mmm->mix.OUTtimes[CARDPUNCH] = 10000;
   // I chose a value arbitrarily for tape IO because I haven't seen an
   // official figure yet
   for (int i = 0; i < 8; i++) {
@@ -808,8 +838,10 @@ int main(int argc, char **argv) {
   }
   if (!loadmixalfile(argv[1], &mmm))
     return 0;
-  if (argc >= 3 && loadcardfile(argv[2], &mmm))
-    strncpy(mmm.globalcardfile, argv[2], LINELEN);
+  if (argc >= 3 && loadcardreaderfile(argv[2], &mmm))
+    strncpy(mmm.cardreaderfile, argv[2], LINELEN);
+  if (argc >= 4 && loadcardpunchfile(argv[3], &mmm))
+    strncpy(mmm.cardpunchfile, argv[3], LINELEN);
 
   printf(CYAN("MIX Management Module, by wyan\n"));
   printf("Type h for help\n");
@@ -823,59 +855,58 @@ int main(int argc, char **argv) {
     if (feof(stdin))
       return 0;
 
-    if (line[0] == '\0') {      // Run the previous command
+    if (*line == '\0')        // Run the previous command
       strncpy(line, mmm.prevline, LINELEN);
-    }
     strncpy(mmm.prevline, line, LINELEN);
 
-    if (line[0] == 'l') {       // Reload MIXAL, card and tape files
+    if (*line == 'l') {       // Reload MIXAL, card and tape files
       if (!loadmixalfile(argv[1], &mmm))
 	return 0;
-      loadcardfile(mmm.globalcardfile, &mmm);
+      loadcardreaderfile(mmm.cardreaderfile, &mmm);
+      loadcardpunchfile(mmm.cardpunchfile, &mmm);
       for (int i = 0; i < 8; i++)
-	if (*mmm.globaltapefiles[i] != '\0')
-	  loadtapefile(mmm.globaltapefiles[i], i, &mmm);
+	if (*mmm.tapefiles[i] != '\0')
+	  loadtapefile(mmm.tapefiles[i], i, &mmm);
     }
-    else if (line[0] == '@') {  // Load new card file
-      if (loadcardfile(line+1, &mmm))
-	strncpy(mmm.globalcardfile, line+1, LINELEN);
+    else if (*line == '@') {  // Load new card reader file
+      if (loadcardreaderfile(line+1, &mmm))
+	strncpy(mmm.cardreaderfile, line+1, LINELEN);
     }
-    else if (line[0] == '#') {  // Load new tape file
+    else if (*line == '!') {  // Load new card punch file
+      if (loadcardpunchfile(line+1, &mmm))
+	strncpy(mmm.cardpunchfile, line+1, LINELEN);
+    }
+    else if (*line == '#') {  // Load new tape file
       if (line[1] == '\0')
 	printf(RED("You have to provide a tape number!\n"));
       else {
 	int n = line[1]-'0';
 	if (loadtapefile(line+2, n, &mmm))
-	  strncpy(mmm.globaltapefiles[n], line+2, LINELEN);
+	  strncpy(mmm.tapefiles[n], line+2, LINELEN);
       }
     }
-    else if (line[0] == 's') {  // Run one step
-      if (mmm.mix.done) {
-	printf(GREEN("Program has finished running with exit code %d; type l to reset\n"), mmm.mix.exitcode);
-	continue;
-      }
-      onestepwrapper(0, &mmm);
-      displayinstr_debug(mmm.mix.PC, &mmm);
-    }
-    else if (line[0] == 'b')    // Run till breakpoint
+    else if (*line == 's')    // Run one step
+      stepcommand(&mmm);
+    else if (*line == 'b')    // Run till breakpoint
       breakpointcommand(line+1, &mmm);
-    else if (line[0] == 'g') {  // Run whole program
+    else if (*line == 'g')    // Run whole program
       gocommand(line+1, &mmm);
-    }
-    else if (line[0] == 'v')    // View memory
+    else if (*line == 'v')    // View memory
       viewcommand(line+1, &mmm);
-    else if (line[0] == 'r')    // View internal state
+    else if (*line == 'r')    // View internal state
       statecommand(&mmm);
-    else if (line[0] == 't')    // View timing statistics
+    else if (*line == 't')    // View timing statistics
       timecommand(&mmm);
-    else if (line[0] == 'a')    // Analyze program
+    else if (*line == 'a')    // Analyze program
       analyzecommand(line+1, &mmm);
-    else if (line[0] == 'C')    // Export program into cards
+    else if (*line == 'C')    // Export program into cards
       exportcommand(&mmm);
-    else if (line[0] == 'h')    // Help
-      printhelp();
-    else if (line[0] == 'q')    // Quit
+    else if (*line == 'h')    // Help
+      helpcommand();
+    else if (*line == 'q') {  // Quit
+      quitcommand(&mmm);
       return 0;
+    }
     else
       printf(BLUE("Hold up, I don't understand that command\n"));
   }

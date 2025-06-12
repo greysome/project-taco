@@ -54,9 +54,11 @@ typedef uint32_t word;
 
 // Data relevant to the operation of each IO device
 typedef struct {
-  word M, F, C;
-  int totaltime, timer;
-  char *err;
+  word M;
+  word F;
+  word C;
+  int totaltime;
+  int timer;
 } IOtask;
 
 typedef struct {
@@ -72,15 +74,17 @@ typedef struct {
 
   bool overflow;
   int cmp;
-  word A, X;
+  word A;
+  word X;
   word Is[6];
   word J;
-  // (Technically the I and J registers only have 2 bytes, but it is
-  //  convenient to reuse the word type.)
+  // Technically the I and J registers only have 2 bytes, but it is
+  // convenient to reuse the word type.
   word mem[4000];
 
-  FILE *cardfile;     // File that stores a deck of cards
-  FILE *tapefiles[8]; // Files that store tape data
+  FILE *cardreaderfile;
+  FILE *cardpunchfile;
+  FILE *tapefiles[8];
   IOtask iotasks[21];
 
   int INtimes[21];

@@ -347,18 +347,18 @@ void xor(word *destA, word w) {
 // Some characters are Unicode, and in that case the remaining
 // codepoint data is set in extra.
 unsigned char mixchr(byte b, unsigned char *extra) {
-  *extra = '\0';
+  if (extra) *extra = '\0';
   switch (b) {
   case 0: return ' '; break;
   case 1: case 2: case 3: case 4: case 5:
   case 6: case 7: case 8: case 9:
     return 'A'+(b-1);
-  case 10: *extra = 0x94; return 0xce;  // \u0394, Delta
+  case 10: if (extra) *extra = 0x94; return 0xce;  // \u0394, Delta
   case 11: case 12: case 13: case 14: case 15:
   case 16: case 17: case 18: case 19:
     return 'J'+(b-11);
-  case 20: *extra = 0xa3; return 0xce;  // \u03a3, Sigma
-  case 21: *extra = 0xa0; return 0xce;  // \u03a0, Pi
+  case 20: if (extra) *extra = 0xa3; return 0xce;  // \u03a3, Sigma
+  case 21: if (extra) *extra = 0xa0; return 0xce;  // \u03a0, Pi
   case 22: case 23: case 24: case 25: case 26:
   case 27: case 28: case 29:
     return 'S'+(b-22);
@@ -448,7 +448,7 @@ byte mixord(char c) {
 void initmix(mix *mix) {
   mix->done = false;
   mix->exitcode = 0;
-  mix->err = "";
+  mix->err = NULL;
 
   mix->PC = 0;
 
@@ -467,27 +467,27 @@ void initmix(mix *mix) {
     mix->Is[i] = POS(0);
   mix->J = POS(0);
 
-  mix->cardfile = NULL;
+  mix->cardreaderfile = NULL;
   for (int i = 0; i < 8; i++)
     mix->tapefiles[i] = NULL;
 
   for (int i = 0; i < 21; i++) {
     mix->iotasks[i].totaltime = 0;
     mix->iotasks[i].timer = 0;
-    mix->iotasks[i].err = "";
   }
 }
 
-static bool readcard(IOtask *iotask, mix *mix, word M) {
-  if (mix->cardfile == NULL) {
-    iotask->err = "unspecified card file";
-    return false;
+static void readcard(mix *mix, word M) {
+  if (mix->cardreaderfile == NULL) {
+    mix->err = "unspecified file for card reader";
+    return;
   }
 
   for (int i = 0; i < 16*5; i++) {
     char c;
-    if ((c = fgetc(mix->cardfile)) == EOF)  // If we encountered EOF halfway through the card,
-      c = ' ';                              // fill in the remaining words with 0s.
+    // If we encountered EOF halfway through the card,
+    // fill in the remaining words with 0s.
+    if ((c = fgetc(mix->cardreaderfile)) == EOF) c = ' ';
     if (c == '\n') {  // Ignore newlines
       i--;
       continue;
@@ -495,18 +495,38 @@ static bool readcard(IOtask *iotask, mix *mix, word M) {
 
     int addr = INT(M)+i/5;
     if (INVALIDADDR(addr)) {
-      iotask->err = "illegal address while reading card";
-      return false;
+      mix->err = "illegal address while reading card";
+      return;
     }
 
-    int pos = i%5 + 1;
+    int field = i%5 + 1;
     // Store the character in the appropriate byte of the address.
-    storeword(&mix->mem[addr], mixord(c), pos*8 + pos);
+    storeword(&mix->mem[addr], mixord(c), field*8 + field);
   }
-  return true;
 }
 
-static bool printline(IOtask *iotask, mix *mix, word M) {
+static void punchcard(mix *mix, word M) {
+  if (mix->cardpunchfile == NULL) {
+    mix->err = "unspecified file for card punch";
+    return;
+  }
+
+  for (int addr = INT(M); addr < INT(M)+16; addr++) {
+    if (INVALIDADDR(addr)) {
+      mix->err = "illegal address while punching card";
+      return;
+    }
+
+    word w = mix->mem[addr];
+    for (int field = 1; field <= 5; field++) {
+      byte b = applyfield(w, field*8 + field);
+      fputc(mixchr(b,NULL), mix->cardpunchfile);
+    }
+  }
+  fputc('\n', mix->cardpunchfile);
+}
+
+static void printline(mix *mix, word M) {
   // Each line has 120 characters (plus the trailing \n\0), a
   // character may need 2 bytes to encode (for the codepoints
   // 10=Delta, 20=Sigma, 21=Pi).
@@ -517,8 +537,8 @@ static bool printline(IOtask *iotask, mix *mix, word M) {
   for (int i = 0; i < 24; i++) {
     int addr = INT(M)+i;
     if (INVALIDADDR(addr)) {
-      iotask->err = "illegal address while printing line";
-      return false;
+      mix->err = "illegal address while printing line";
+      return;
     }
 
     // Add the characters in the word to the line buffer.
@@ -534,14 +554,13 @@ static bool printline(IOtask *iotask, mix *mix, word M) {
   }
   line[c++] = '\n'; line[c++] = '\0';
   printf(line);
-  return true;
 }
 
-bool controltape(IOtask *iotask, mix *mix, word M, int unit) {
+void controltape(mix *mix, word M, int unit) {
   FILE *fp = mix->tapefiles[unit];
   if (fp == NULL) {
-    iotask->err = "unspecified tape file";
-    return false;
+    mix->err = "unspecified file for tape unit";
+    return;
   }
 
   // We should be at the start of a tape block.
@@ -557,22 +576,21 @@ bool controltape(IOtask *iotask, mix *mix, word M, int unit) {
     if (newpos < 0)
       fseek(fp, 0L, SEEK_SET);
     else if (newpos >= 601L*1000) {
-      iotask->err = "end of tape reached";
-      return false;
+      mix->err = "end of tape reached";
+      return;
     }
     else
       fseek(fp, newpos, SEEK_SET);
   }
 
   assert(ftell(fp) % 601L == 0);
-  return true;
 }
 
-bool readtape(IOtask *iotask, mix *mix, word M, int unit) {
+void readtape(mix *mix, word M, int unit) {
   FILE *fp = mix->tapefiles[unit];
   if (fp == NULL) {
-    iotask->err = "unspecified tape file";
-    return false;
+    mix->err = "unspecified file for tape unit";
+    return;
   }
 
   // We should be at the start of a tape block.
@@ -581,27 +599,27 @@ bool readtape(IOtask *iotask, mix *mix, word M, int unit) {
   for (int i = 0; i < 600; i++) {
     char c;
     if ((c = fgetc(fp)) == EOF) {
-      iotask->err = "unexpected EOF in middle of tape";
-      return false;
+      mix->err = "unexpected EOF in middle of tape";
+      return;
     }
 
     int addr = INT(M)+i/6;
     if (INVALIDADDR(addr)) {
-      iotask->err = "illegal address while reading from tape";
-      return false;
+      mix->err = "illegal address while reading from tape";
+      return;
     }
 
-    if (i%6 == 0) {  // Do we load a sign?
+    if (i%6 == 0) {  // Do we load a sign...
       if (c == '#')
 	mix->mem[addr] = POS(0);
       else if (c == '~')
 	mix->mem[addr] = NEG(0);
       else {
-	iotask->err = "invalid sign in tape, should be # or ~";
-	return false;
+	mix->err = "invalid sign in tape, should be # or ~";
+	return;
       }
     }
-    else {           // or load a byte?
+    else {           // ... or load a byte?
       int pos = i%6;
       // Store the character in the appropriate byte of the address.
       storeword(&mix->mem[addr], mixord(c), pos*8 + pos);
@@ -609,7 +627,6 @@ bool readtape(IOtask *iotask, mix *mix, word M, int unit) {
   }
   assert(fgetc(fp) == '\n');  // Last character of block is a newline
   assert(ftell(fp) % 601L == 0);
-  return true;
 }
 
 // A small wrapper around fputc, taking into account the Unicode
@@ -625,11 +642,11 @@ static void _writechar(unsigned char c, unsigned char extra, FILE *fp) {
     fputc(c, fp);
 }
 
-bool writetape(IOtask *iotask, mix *mix, word M, int unit) {
+void writetape(mix *mix, word M, int unit) {
   FILE *fp = mix->tapefiles[unit];
   if (fp == NULL) {
-    iotask->err = "unspecified tape file";
-    return false;
+    mix->err = "unspecified file for tape unit";
+    return;
   }
 
   // We should be at the start of a tape block.
@@ -639,8 +656,8 @@ bool writetape(IOtask *iotask, mix *mix, word M, int unit) {
   for (int i = 0; i < 100; i++) {
     int addr = INT(M)+i;
     if (INVALIDADDR(addr)) {
-      iotask->err = "illegal address while writing to tape";
-      return false;
+      mix->err = "illegal address while writing to tape";
+      return;
     }
 
     // Write the word to the tape file.
@@ -657,30 +674,28 @@ bool writetape(IOtask *iotask, mix *mix, word M, int unit) {
   }
   _writechar('\n', '\0', fp);
   assert(ftell(fp) % 601 == 0);
-  return true;
 }
 
 // Do the actual IO transmission (the corresponding IO instruction
 // would have been dispatched many cycles ago).
 // Return false if there was an error carrying out the IO operation.
 static bool do_io_transmission(IOtask *iotask, mix *mix) {
+  mix->err = NULL;
   word M = iotask->M;
   word F = iotask->F;
   word C = iotask->C;
 
-  if (F == CARDREADER)
-    return readcard(iotask, mix, M);
-  else if (F == LINEPRINTER && C == OUT)
-    return printline(iotask, mix, M);
-  else if (F == LINEPRINTER && C == IOC)  // So far, IOC on a line printer does nothing
-    return true;
-  else if (ISTAPE(F) && C == IOC)
-    return controltape(iotask, mix, M, F);
-  else if (ISTAPE(F) && C == IN)
-    return readtape(iotask, mix, M, F);
-  else if (ISTAPE(F) && C == OUT)
-    return writetape(iotask, mix, M, F);
-  assert(false);
+  if (F == CARDREADER) readcard(mix, M);
+  else if (F == CARDPUNCH) punchcard(mix, M);
+  else if (F == LINEPRINTER && C == OUT) printline(mix, M);
+  // Not implemented yet.
+  else if (F == LINEPRINTER && C == IOC) ;
+  else if (ISTAPE(F) && C == IOC) controltape(mix, M, F);
+  else if (ISTAPE(F) && C == IN) readtape(mix, M, F);
+  else if (ISTAPE(F) && C == OUT) writetape(mix, M, F);
+
+  if (mix->err) return false;
+  return true;
 }
 
 void onestep(mix *mix) {
@@ -689,7 +704,7 @@ void onestep(mix *mix) {
 #define _STOP(error) {             			\
   mix->done = true;                                     \
   mix->err = error;                                     \
-  return;                                               \
+  goto done;                                            \
 }
 #define _CHECKADDR(i)                                   \
 if ((i)<0 || (i)>=4000) {                               \
@@ -753,17 +768,14 @@ if (!checkfieldspec(F)) {				\
     }
 
     else if (F == 2) {                          // HLT
-      instrtime = 0;
-      // Complete remaining IO tasks before returning
-      for (int i = 0; i < 21; i++) {
-	IOtask *iotask = &mix->iotasks[i];
-	if (iotask->timer > iotask->totaltime/2)  // IO transmission not done yet?
-	  if (!do_io_transmission(iotask, mix))
-	    _STOP(iotask->err)
-	iotask->timer = 0;
-      }
+      instrtime = 1;
+      //// I've decided not to complete any outstanding IO tasks here.
+      //// It is the responsibilty of the programmer to add in
+      //// appropriate "JBUS *" instructions.
       mix->exitcode = INT(M);
-      _STOP("")
+      mix->exectimes[mix->PC] = 1;
+      mix->execcounts[mix->PC] = 1;
+      _STOP(NULL)
     }
 
     else if (F == 5) {                          // XOR
@@ -834,7 +846,7 @@ if (!checkfieldspec(F)) {				\
   }
 
   else if (C == JBUS) {
-    if (ISTAPE(F) || F == CARDREADER || F == LINEPRINTER) {
+    if (ISTAPE(F) || F == CARDREADER || F == CARDPUNCH || F == LINEPRINTER) {
       if (mix->iotasks[F].timer > 0) {
 	mix->J = POS(mix->PC+1);
 	mix->execcounts[mix->PC]++;
@@ -848,11 +860,12 @@ if (!checkfieldspec(F)) {				\
   }
 
   else if (C == IOC || C == IN || C == OUT) {
-    // Check that device number is valid
+    // Does the nature of the device (input or output) match the
+    // instruction given?
     if (F < 0 || F >= 21 ||
 	(C == IOC && !(ISTAPE(F) || F == LINEPRINTER)) ||
 	(C == IN  && !(ISTAPE(F) || F == CARDREADER)) ||
-	(C == OUT && !(ISTAPE(F) || F == LINEPRINTER))) {
+	(C == OUT && !(ISTAPE(F) || F == LINEPRINTER || F == CARDPUNCH))) {
       if (C == IOC)
 	_STOP("invalid device number for IOC")
       else if (C == IN)
@@ -876,7 +889,8 @@ if (!checkfieldspec(F)) {				\
       // it is ready (and do the transmission if it hasn't been done
       // yet).
       if (prev_iotask.timer > prev_iotask.totaltime/2)
-	do_io_transmission(&prev_iotask, mix);
+	if (!do_io_transmission(&prev_iotask, mix))
+	  _STOP(mix->err)
       // To simulate the fast forwarding effect, we simply update the
       // other devices' timers...
       for (int i = 0; i < 21; i++)
@@ -888,24 +902,17 @@ if (!checkfieldspec(F)) {				\
       mix->iotasks[F].M = M;
       mix->iotasks[F].F = F;
       mix->iotasks[F].C = C;
-      mix->iotasks[F].err = "";
-      if (C == IOC) {
-	mix->iotasks[F].totaltime = mix->IOCtimes[F];
-	mix->iotasks[F].timer = mix->IOCtimes[F];
-      }
-      else if (C == IN) {
-	mix->iotasks[F].totaltime = mix->INtimes[F];
-	mix->iotasks[F].timer = mix->INtimes[F];
-      }
-      else if (C == OUT) {
-	mix->iotasks[F].totaltime = mix->OUTtimes[F];
-	mix->iotasks[F].timer = mix->OUTtimes[F];
-      }
+      if (C == IOC)
+	mix->iotasks[F].totaltime = mix->iotasks[F].timer = mix->IOCtimes[F];
+      else if (C == IN)
+	mix->iotasks[F].totaltime = mix->iotasks[F].timer = mix->INtimes[F];
+      else if (C == OUT)
+	mix->iotasks[F].totaltime = mix->iotasks[F].timer = mix->OUTtimes[F];
     }
   }
 
   else if (C == JRED) {
-    if (ISTAPE(F) || F == CARDREADER || F == LINEPRINTER) {
+    if (ISTAPE(F) || F == CARDREADER || F == CARDPUNCH || F == LINEPRINTER) {
       if (mix->iotasks[F].timer == 0) {
 	mix->J = POS(mix->PC+1);
 	mix->execcounts[mix->PC]++;
@@ -1004,7 +1011,7 @@ if (!checkfieldspec(F)) {				\
     if (iotask->timer > iotask->totaltime/2 &&
 	iotask->timer - instrtime <= iotask->totaltime/2) {
       if (!do_io_transmission(iotask, mix))
-	_STOP(iotask->err)
+	_STOP(mix->err)
     }
     iotask->timer -= instrtime;
     if (iotask->timer < 0)
@@ -1014,17 +1021,20 @@ if (!checkfieldspec(F)) {				\
 #undef _CHECKADDR
 #undef _FIELDSPEC
 
-  if (mix->done) {
-    // Flush the tape files
-    for (int i = 0; i < 7; i++) {
-      if (mix->tapefiles[i] != NULL)
-	fflush(mix->tapefiles[i]);
-    }
-  }
-
   if (advancePC) {
     mix->execcounts[mix->PC]++;
     mix->exectimes[mix->PC] += instrtime;
     mix->PC++;
+  }
+
+  if (mix->done) {
+done:
+    // Flush the output device files
+    fflush(mix->cardpunchfile);
+    for (int i = 0; i < 7; i++) {
+      if (mix->tapefiles[i] != NULL)
+	fflush(mix->tapefiles[i]);
+    }
+    return;
   }
 }

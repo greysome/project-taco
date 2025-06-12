@@ -9,8 +9,9 @@ typedef struct {
   mix mix;
   parsestate ps;
   char prevline[LINELEN];
-  char globalcardfile[LINELEN];
-  char globaltapefiles[8][LINELEN];
+  char cardreaderfile[LINELEN];
+  char cardpunchfile[LINELEN];
+  char tapefiles[8][LINELEN];
   char debuglines[4000][LINELEN];
   bool shouldtrace;
 } mmmstate;

@@ -1,9 +1,9 @@
 #include "emulator.h"
 #include "assembler.h"
 
-extern bool controltape(IOtask *, mix *, word, int);
-extern bool readtape(IOtask *, mix *, word, int);
-extern bool writetape(IOtask *, mix *, word, int);
+extern bool controltape(mix *, word, int);
+extern bool readtape(mix *, word, int);
+extern bool writetape(mix *, word, int);
 
 void testemulator() {
   mix mix;
@@ -338,27 +338,31 @@ void testemulator() {
   FILE *fp = fopen("test-files/in.tape", "r+");
   mix.tapefiles[0] = fp;
 
-  IOtask iotask;
-  iotask.M = 0;
-
   assert(ftell(fp) == 0L);
   // Wind forward
-  assert(controltape(&iotask, &mix, POS(3), 0));
+  controltape(&mix, POS(3), 0);
+  assert(!mix.err);
   assert(ftell(fp) == 3*601L);
 
   // Wind backward
-  assert(controltape(&iotask, &mix, NEG(1), 0));
+  controltape(&mix, NEG(1), 0);
+  assert(!mix.err);
   assert(ftell(fp) == 2*601L);
 
   // Wind backward past beginning
-  assert(controltape(&iotask, &mix, NEG(3), 0));
+  controltape(&mix, NEG(3), 0);
+  assert(!mix.err);
   assert(ftell(fp) == 0L);
 
   // Wind forward past end
-  assert(!controltape(&iotask, &mix, POS(1001), 0));
+  controltape(&mix, POS(1001), 0);
+  assert(mix.err);
 
   // TEST: tape IN
-  assert(readtape(&iotask, &mix, 0, 0));
+  mix.err = NULL;
+  rewind(fp);
+  readtape(&mix, 0, 0);
+  assert(!mix.err);
   assert(mix.mem[0] == POS(mixord('A')));
   assert(mix.mem[99] == POS(mixord('Z')));
 
@@ -368,8 +372,10 @@ void testemulator() {
   mix.tapefiles[1] = fp;
 
   // Write to very last block of tape
-  assert(controltape(&iotask, &mix, POS(999), 1));
-  assert(writetape(&iotask, &mix, 0, 1));
+  controltape(&mix, POS(999), 1);
+  assert(!mix.err);
+  writetape(&mix, 0, 1);
+  assert(!mix.err);
   assert(ftell(fp) == 1000*601L);
 
   fclose(fp);
