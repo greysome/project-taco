@@ -1,13 +1,25 @@
 //// Boundary-tag malloc
 
+//// Modifiable parameters
+#define HEAPBLOCK      131072
+#define GRANULARITY    8
+#define HEURISTIC      2
+#define SIZEDIST       2
+#define LIFETIMEDIST   0
+#define INFOVERBOSE    0
+#define BENCHVERBOSE   0
+#define ITERS          10000
+
+//// From here on out is the actual code
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <assert.h>
+#include <limits.h>
+#include "common.h"
 
-#define HEAPBLOCK      4096
-#define ALIGNOFFL(p)   ( (uintptr_t)(p))%_Alignof(btheader)
-#define ALIGNOFFR(p)   (-(uintptr_t)(p))%_Alignof(btheader)
+#define ALIGNOFFL(p)   ( (uintptr_t)(p))%sizeof(btheader)
+#define ALIGNOFFR(p)   (-(uintptr_t)(p))%sizeof(btheader)
 #define RFIT(x)        ((char*)(x)<Heapbase+HEAPBLOCK)
 #define LFIT(x)        ((char*)(x)>= Heapbase)
 #define HEADERC(x)     (x-sizeof(btheader))
@@ -29,29 +41,33 @@ typedef struct _btheader btheader;
 btheader Head = {.used = false};
 char *Heapbase;
 
-#define WHITE  "\033[37m"
-#define YELLOW "\033[92m"
-#define CYAN   "\033[36m"
-void printheap(int verbose) {
+void btinfo(int verbose) {
   btheader *p = (btheader*)Heapbase;
+  int nfree = 0;
+  int nused = 0;
   do {
-    printf(YELLOW "[" WHITE "%d", p->size);
-    if (verbose >= 1) printf(" @ %p", p);
+    assert(p->size >= GRANULARITY);
+    if (p->used) nused++;
+    else         nfree++;
+
+    if (p->used) printf(RED "[" WHITE "%d", p->size);
+    else         printf(GREEN "[" WHITE "%d", p->size);
+    if (verbose >= 1) printf(" @ " PRIPTR, LEASTSIG(p) + sizeof(btheader));
     if (verbose >= 2) {
       if (p->used) printf(" prevsize=%d", p->prevsize);
       else {
-	if (p->prev == &Head) printf(" prev=HEAD");
-	else printf(" prev=%p", p->prev);
-	if (p->next == &Head) printf(" next=HEAD");
-	else printf(" next=%p", p->next);
+	if (p->prev == &Head) printf(" prev=" CYAN "HEAD" WHITE);
+	else                  printf(" prev=" PRIPTR, LEASTSIG(p->prev));
+	if (p->next == &Head) printf(" next=" CYAN "HEAD" WHITE);
+	else                  printf(" next=" PRIPTR, LEASTSIG(p->next));
       }
     }
-    printf(YELLOW "]" WHITE);
-    if (p->used) printf(YELLOW "*" WHITE);
+    if (p->used) printf(RED "]" WHITE);
+    else         printf(GREEN "]" WHITE);
     printf(" ");
     p = (btheader*)((char*)p + sizeof(btheader) + p->size);
   } while ((char*)p < Heapbase + HEAPBLOCK);
-  printf("\n");
+  printf("\n%d blocks total: %d " RED "used" WHITE ", %d " GREEN "free" WHITE "\n", nfree+nused, nused, nfree);
 }
 
 void *btmalloc(int n) {
@@ -71,40 +87,75 @@ void *btmalloc(int n) {
   }
 
   btheader *p = &Head;
-  // Find a block from the free list.
+#if HEURISTIC == 1
+  btheader *best; int bestsize = INT_MAX;
+#elif HEURISTIC == 2
+  btheader *worst; int worstsize = 0;
+#endif
+
+  //// Find a block from the free list.
   while (true) {
+    if (INFOVERBOSE >= 2) printf("(btmalloc) p = " PRIPTR " -> " PRIPTR " \n", LEASTSIG(p), LEASTSIG(p->next));
     p = p->next;
+
+#if HEURISTIC == 0
     // We couldn't find a large enough free block.
-    if (p == &Head) break;
+    if (p == &Head) return NULL;
+#elif HEURISTIC == 1
+    if (p == &Head) {
+      if (bestsize == INT_MAX) return NULL;
+      else break;
+    }
+#elif HEURISTIC == 2
+    if (p == &Head) {
+      if (worstsize == 0) return NULL;
+      else break;
+    }
+#endif
+
     // This free block is too small.
     if (n > p->size) continue;
 
-    // In full, it is "((char*)p + sizeof(*p)) + p->size - (n + sizeof(*q))".
-    char *qc = (char*)p + p->size - n;
-    int off = ALIGNOFFL(qc);
-    qc -= off;
-    btheader *q = (btheader*)qc;
-
-    if (q == p) {
-      // The entire block is reserved, delete it from free list.
-      p->used = true;
-      p->prev->next = p->next;
-      p->next->prev = p->prev;
-      SETPREVSIZE(q);
-      return (char*)p + sizeof(btheader);
-    }
-    else {
-      // Truncate the free block.
-      q->used = true;
-      q->size = n + off;
-      p->size -= n + off + sizeof(btheader);
-      // Update prevsize
-      q->prevsize = p->size;
-      SETPREVSIZE(q);
-      return qc + sizeof(btheader);
-    }
+#if HEURISTIC == 0
+    break;
+#elif HEURISTIC == 1
+    if (p->size < bestsize) { bestsize = p->size; best = p; }
+#elif HEURISTIC == 2
+    if (p->size > worstsize) { worstsize = p->size; worst = p; }
+#endif
   };
-  return NULL;
+  //// End of while loop
+
+#if HEURISTIC == 0
+  char *pc = (char*)p;
+#elif HEURISTIC == 1
+  p = best; char *pc = (char*)best;
+#elif HEURISTIC == 2
+  p = worst; char *pc = (char*)worst;
+#endif
+  // In full, it is "pc + sizeof(btheader)) + p->size - (n + sizeof(btheader))".
+  char *qc = pc + p->size - n;
+  int off = ALIGNOFFL(qc);
+  qc -= off;
+  btheader *q = (btheader*)qc;
+
+  if (qc-pc < sizeof(btheader) + GRANULARITY) {
+    // The entire block is reserved, delete it from free list.
+    p->used = true;
+    p->prev->next = p->next;
+    p->next->prev = p->prev;
+    SETPREVSIZE(p);
+    return pc + sizeof(btheader);
+  }
+  else {
+    // Truncate the free block.
+    q->used = true;
+    q->size = n + off;
+    p->size -= n + off + sizeof(btheader);
+    q->prevsize = p->size;
+    SETPREVSIZE(q);
+    return qc + sizeof(btheader);
+  }
 }
 
 void btfree(void *x) {
@@ -115,20 +166,19 @@ void btfree(void *x) {
   btheader *right = RIGHTNBR(p);
 
   if (!LFIT(left) || left->used) {
-    p->used = false;
-    if (!RFIT(right) || right->used) {  // USED FREE USED
+    p->used = false;                    // USED FREE USED  or  [ FREE USED   or
+    if (!RFIT(right) || right->used) {  // USED FREE ]     or  [ FREE ]
       // Insert p to free list, behind Head
       p->next = &Head;
       p->prev = Head.prev;
       Head.prev->next = p;
       Head.prev = p;
     }
-    else {                              // USED FREE FREE
+    else {                              // USED FREE FREE  or  [ FREE FREE
       p->size += sizeof(btheader) + right->size;
-      // Links to next should now be links to p
+      // Modify links so that p instead of right is in the free list
       right->prev->next = p;
       right->next->prev = p;
-      // Add links from p
       p->next = right->next;
       p->prev = right->prev;
       SETPREVSIZE(p);
@@ -136,12 +186,14 @@ void btfree(void *x) {
   }
   else {
     left->size += sizeof(btheader) + p->size;
-    if (RFIT(right) && !right->used) {  // FREE FREE FREE
+    if (!RFIT(right)) return;           // FREE FREE ]
+
+    if (!right->used) {                 // FREE FREE FREE
       left->size += sizeof(btheader) + right->size;
-      // Remove next from free list
-      left->next = left->next->next;
-      left->next->prev = left;
       SETPREVSIZE(left);
+      // Remove right from free list
+      right->prev->next = right->next;
+      right->next->prev = right->prev;
     }
     else {                              // FREE FREE USED
       right->prevsize = left->size;
@@ -155,6 +207,9 @@ void btreset() {
 }
 
 void bt_singlemalloctest(int n) {
+#if HEURISTIC != 0
+  printf("[TEST] Single malloc test requires HEURISTIC=0 (FIRSTFIT)\n");
+#else
   printf("[TEST] Single malloc: %d bytes\n", n);
   char *x = btmalloc(n);
   if (n > HEAPBLOCK - sizeof(btheader)) {
@@ -162,6 +217,7 @@ void bt_singlemalloctest(int n) {
     return;
   }
   assert(x);
+  btinfo(2);
 
   if (n == HEAPBLOCK - sizeof(btheader)) {
     btheader *p1 = HEADER(x);
@@ -187,10 +243,14 @@ void bt_singlemalloctest(int n) {
     assert(p->used);
   }
   btreset();
+#endif
 }
 
 //// To verify the correctness of malloc, free, and their interactions
 void bt_simpleworkloadtest() {
+#if HEAPBLOCK != 4096
+  printf("[TEST] Simple workload test requires HEAPBLOCK=4096\n");
+#else
   printf("[TEST] Simple workload\n");
   char *x1 = btmalloc(512);
   char *x2 = btmalloc(256);
@@ -240,12 +300,20 @@ void bt_simpleworkloadtest() {
   assert(p1->prevsize == 960);
   assert(Head.prev->prev == &Head);
   assert(Head.next->next == &Head);
+#endif
 }
+
+#define FREE     btfree
+#define MALLOC   btmalloc
+#define RESET    btreset
+#define INFO()   btinfo(INFOVERBOSE)
+#include "bench.c"
 
 int main() {
   bt_singlemalloctest(10);
   bt_singlemalloctest(HEAPBLOCK - sizeof(btheader));
   bt_singlemalloctest(HEAPBLOCK);
   bt_simpleworkloadtest();
+  bench(BENCHVERBOSE);
   return 0;
 }

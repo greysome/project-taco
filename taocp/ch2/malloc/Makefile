@@ -1,4 +1,4 @@
 CFLAGS=-g -fsanitize=address -fsanitize=undefined
 
-btmalloc: btmalloc.c
-	gcc -o $@ $(CFLAGS) $^
+btmalloc: btmalloc.c bench.c common.h
+	gcc -o $@ $(CFLAGS) btmalloc.c
