@@ -7,3 +7,5 @@ sparsemat      pivot step operation on a sparse matrix, represented using
                links between nonzero entries
 differentiate  differentiate formulas represented as trees
 poly2.c        basic operations on polynomials represented as trees
+malloc         simple boundary-tag and buddy malloc implementation in C
+malloc-mixal   solutions to some MIXAL exercises in 2.5
