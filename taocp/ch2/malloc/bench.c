@@ -1,3 +1,15 @@
+//// Benchmark code, to be directly included in a malloc implementation
+////
+//// Before including bench.c, the following should be #define'd:
+//// ITERS:        how many iteration to run
+//// BENCHVERBOSE: 0=(info every 50 iters), 1=(info after every iter + free/malloc operations), 2=(info for every free/malloc)
+//// SIZEDIST:     0=(uniform 100 to 2000), 1=(powers of 2), 2=(preset sizes)
+//// LIFETIMEDIST: 0=(uniform 1 to 10), 1=(uniform 1 to 100), 2=(uniform 1 to 1000)
+//// MALLOC:       malloc routine
+//// FREE:         free routine
+//// RESET:        reset routine
+//// INFO:         info routine
+
 //// Poor man's RNG
 unsigned int _x = 0;
 #define MM     4294967296u
@@ -70,18 +82,18 @@ void bench(int verbose) {
     //// Free blocks
     for (int i = 0; i < nodesptr; i++) {
       if (nodes[i].freetime == Time) {
-	if (verbose >= 2) printf("[BENCH] TIME=%d: FREE " PRIPTR "\n", Time, LEASTSIG(nodes[i].p));
+	if (verbose >= 1) printf("[BENCH] TIME=%d: FREE " PRIPTR "\n", Time, LEASTSIG(nodes[i].p));
 	FREE(nodes[i].p);
 	nodes[i] = nodes[(nodesptr--)-1];
 	i--;
-	if (verbose >= 100) INFO();
+	if (verbose >= 2) INFO();
       }
     }
     //// Allocate block randomly
     int size = SIZE();
     int lifetime = LIFETIME();
     void *p = MALLOC(size);
-    if (verbose >= 2) printf("[BENCH] TIME=%d: MALLOC %d bytes at " PRIPTR " lasting %du\n", Time, size, LEASTSIG(p), lifetime);
+    if (verbose >= 1) printf("[BENCH] TIME=%d: MALLOC %d bytes at " PRIPTR " lasting %du\n", Time, size, LEASTSIG(p), lifetime);
     if (!p) {
       printf("[BENCH] TIME=%d: Ran out of memory; exiting\n", Time);
       INFO();
@@ -89,14 +101,14 @@ void bench(int verbose) {
     }
     nodes[nodesptr++] = (node){.freetime = Time+lifetime, .p = p};
 
-    if (verbose < 2) {
+    if (verbose < 1) {
       if (Time % 50 == 0) {
 	printf("[BENCH] TIME=%d\n", Time);
 	INFO();
 	printf("\n");
       }
     }
-    if (verbose >= 2) { INFO(); printf("\n"); }
+    if (verbose >= 1) { INFO(); printf("\n"); }
   }
   RESET();
 }
