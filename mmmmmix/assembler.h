@@ -36,7 +36,7 @@ bool lookupsym(char *sym, word *val, parsestate *ps);
 
 bool parsesym(char **s, char *sym);
 bool parseoperator(char **s, byte *C, byte *F);
-bool parsenum(char **s, int *val);
+bool parsenum(char **s, uint64_t *val);
 
 // parseatomic() and the rest all write into a word instead of an int,
 // because words and ints are NOT equivalent.

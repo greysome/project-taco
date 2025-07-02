@@ -1,5 +1,29 @@
 #include "emulator.h"
 
+#ifdef DECIMAL
+word NEG(uint64_t i) {
+  word w = 0;
+  uint64_t pow = 100000000;  // 10^8
+  int k = 4;
+  while (k >= 0) {
+    w |= (i/pow) << 7*k;
+    i %= pow;
+    pow /= 100;
+    k--;
+  }
+  return w;
+}
+
+uint64_t MAG(word w) {
+  uint64_t res = 0;
+  for (uint64_t pow = 1; pow <= 100000000; pow *= 100) {
+    res += (w & ONES(7)) * pow;
+    w >>= 7;
+  }
+  return res;
+}
+#endif
+
 // Cycle count of each instruction, from TAOCP Section 1.3.1, Table 1.
 // Note that the cycle count of MOVE and SPEC depends on the F field.
 // (So are IOC/IN/OUT, but these instructions will be specially handled.)
@@ -19,47 +43,54 @@ int max(int a, int b) { return a >= b ? a : b; }
 #define INVALIDADDR(addr) ((addr)<0 || (addr)>=4000)
 #define ISTAPE(F) (TAPE0 <= (F) && (F) <= TAPE7)
 
-// Construct the +-AA field of a word (1 sign bit and 12 address bits).
+// Construct the +-AA field of a word (1 sign bit and 12/14 address bits).
 word ADDR(int addr) {
   int abs = addr < 0 ? -addr : addr;
-  assert(abs < 1<<12);
-  return abs | ((addr >= 0) << 12);
+  bool sign = addr >= 0;
+  assert(abs < 1<<UADDRBITS);
+#ifdef DECIMAL
+  byte A1 = abs/100;
+  byte A2 = abs%100;
+  return (A1 << BYTEBITS) | A2 | (sign << UADDRBITS);
+#else
+  return abs | (sign << UADDRBITS);
+#endif
 }
 
 // Construct a (raw) word from the sign and its five bytes.
 word WORD(bool sign, byte b1, byte b2, byte b3, byte b4, byte b5) {
-  assert(b1 < 64);
-  assert(b2 < 64);
-  assert(b3 < 64);
-  assert(b4 < 64);
-  assert(b5 < 64);
-  word w = b5;
-  w |= b4 << 6;
-  w |= b3 << 12;
-  w |= b2 << 18;
-  w |= b1 << 24;
-  w |= sign << 30;
+  assert(b1 <= BYTEMAX);
+  assert(b2 <= BYTEMAX);
+  assert(b3 <= BYTEMAX);
+  assert(b4 <= BYTEMAX);
+  assert(b5 <= BYTEMAX);
+  word w = ((uint64_t)sign) << BYTEBITS*5;
+  w |= ((uint64_t)b1) << BYTEBITS*4;
+  w |= ((uint64_t)b2) << BYTEBITS*3;
+  w |= ((uint64_t)b3) << BYTEBITS*2;
+  w |= ((uint64_t)b4) << BYTEBITS;
+  w |= ((uint64_t)b5);
   return w;
 }
 
 // Construct an instruction word based on its fields.
 word INSTR(word A, byte I, byte F, byte C) {
-  assert(C < 1<<6);
-  assert(F < 64);
+  assert(A <= 1<<ADDRBITS);
   assert(I <= 6);
-  assert(A <= 1<<13);
+  assert(F <= 64);
+  assert(C <= 64);
   word w = C;
-  w |= F << 6;
-  w |= I << 12;
-  w |= A << 18;
+  w |= F << BYTEBITS;
+  w |= I << BYTEBITS*2;
+  w |= A << BYTEBITS*3;
   return w;
 }
 
 // Extract the individual fields from an instruction word.
-word getA(word instr) { return (instr >> 18) & ONES(13); }
-byte getI(word instr) { return (instr >> 12) & ONES(6); }
-byte getF(word instr) { return (instr >> 6) & ONES(6); }
-byte getC(word instr) { return instr & ONES(6); }
+word getA(word instr) { return (instr >> BYTEBITS*3) & ONES(ADDRBITS); }
+byte getI(word instr) { return (instr >> BYTEBITS*2) & ONES(BYTEBITS); }
+byte getF(word instr) { return (instr >> BYTEBITS*1) & ONES(BYTEBITS); }
+byte getC(word instr) { return instr & ONES(BYTEBITS); }
 word getM(word instr, mix *mix);
 
 int getinstrtime(int C, int F) {
@@ -82,15 +113,15 @@ bool checkfieldspec(byte F) {
 word applyfield(word w, byte F) {
   assert(checkfieldspec(F));
   int start = F/8, end = F%8;
-  bool sign = (w >> 30) & 1;
+  bool sign = SIGN(w);
   // Last byte of v = end byte of w
-  word v = w >> 6*(5-end);
+  word v = w >> BYTEBITS*(5-end);
   // Keep the desired bytes based on F
-  v &= ONES(6 * (end - max(start,1) + 1));
+  v &= ONES(BYTEBITS * (end - max(start,1) + 1));
   if (start == 0)
-    return WITHSIGN(v, sign);
+    return WITHSIGNW(v, sign);
   else
-    return POS(v);
+    return POSW(v);
 }
 
 // Carry out a "load word" operation.
@@ -102,21 +133,21 @@ void loadword(word *dest, word src) {
 void storeword(word *dest, word src, byte F) {
   assert(checkfieldspec(F));
   int start = F/8, end = F%8;
-  word mask = ONES(6 * (end - max(start,1) + 1));
-  word touched_bit_positions = mask << 6*(5-end);
-  word new_bits = (src & mask) << 6*(5-end);
+  word mask = ONES(BYTEBITS * (end - max(start,1) + 1));
+  word touched_bit_positions = mask << BYTEBITS*(5-end);
+  word new_bits = (src & mask) << BYTEBITS*(5-end);
   if (start == 0) {
-    touched_bit_positions |= 1<<30;
-    new_bits |= src & (1<<30);
+    touched_bit_positions |= 1ULL << UWORDBITS;
+    new_bits |= src & (1ULL << UWORDBITS);
   }
-  word untouched_bit_positions = ONES(31) ^ touched_bit_positions;
+  word untouched_bit_positions = ONES(WORDBITS) ^ touched_bit_positions;
   *dest &= untouched_bit_positions;  // Clear out the parts of *dest we are about to store
   *dest |= new_bits;
 }
 
 // Negate a word.
 word negword(word w) {
-  return WITHSIGN(w, !SIGN(w));
+  return WITHSIGNW(w, !SIGN(w));
 }
 
 // Add two words and set the first operand to the result.
@@ -126,32 +157,30 @@ word negword(word w) {
 bool addword(word *dest, word src) {
   bool sign1 = SIGN(*dest);
   bool sign2 = SIGN(src);
-  word w1 = MAG(*dest);
-  word w2 = MAG(src);
+  uint64_t i1 = MAG(*dest);
+  uint64_t i2 = MAG(src);
   // Because the signed words are not stored using two's complement
   // notation, the addition has to be split into cases by sign.
-  bool overflow;
+  bool overflow = false;
   if (sign1 && sign2) {
-    overflow = (w1+w2) >= 1<<30;
-    *dest = POS(w1+w2);
-  }
-  else if (sign1 && !sign2) {
-    overflow = false;
-    if (w1 < w2)
-      *dest = NEG(w2-w1);
+    if (i1+i2 > WORDMAX) {
+      overflow = true;
+      *dest = POS(i1+i2 - (WORDMAX+1));
+    }
     else
-      *dest = POS(w1-w2);
+      *dest = POS(i1+i2);
   }
-  else if (!sign1 && sign2) {
-    overflow = false;
-    if (w2 <= w1)
-      *dest = NEG(w1-w2);
-    else
-      *dest = POS(w2-w1);
-  }
+  else if (sign1 && !sign2)
+    *dest = i1 < i2 ? NEG(i2-i1) : POS(i1-i2);
+  else if (!sign1 && sign2)
+    *dest = i1 < i2 ? POS(i2-i1) : NEG(i1-i2);
   else if (!sign1 && !sign2) {
-    overflow = (w1+w2) >= 1<<30;
-    *dest = NEG(w1+w2);
+    if (i1+i2 > WORDMAX) {
+      overflow = true;
+      *dest = NEG(i1+i2 - (WORDMAX+1));
+    }
+    else
+      *dest = NEG(i1+i2);
   }
   return overflow;
 }
@@ -165,26 +194,26 @@ bool addword(word *dest, word src) {
 // Used to conveniently implement the LOAD/STORE/JMP/INC/CMP families
 // of instructions (essentially any instructions ending with A, X, J
 // or a digit 1-6).
-static word *regpointer(int i, mix *mix) {
-  assert(0 <= i && i <= 8);
-  return i == 0 ? &mix->A
-       : i == 7 ? &mix->X
-       : i == 8 ? &mix->J
-       : &mix->Is[i-1];
+static word *regpointer(int I, mix *mix) {
+  assert(0 <= I && I <= 8);
+  return I == 0 ? &mix->A
+       : I == 7 ? &mix->X
+       : I == 8 ? &mix->J
+       : &mix->Is[I-1];
 }
 
 // Return M = A-field + rIi, where I-field=i.
 word getM(word instr, mix *mix) {
-  // Manually cast the 13-bit A-field into a full word.
+  // Manually cast the A-field into a full word.
   word A = getA(instr);
-  bool sign = (A >> 12) & 1;
-  A = WITHSIGN(A & ONES(12), sign);
+  if (SIGNA(A))
+    A = (A & ONES(UADDRBITS)) | (1ULL << UWORDBITS);
   // Add the contents of rIi if i>0
-  byte i = getI(instr);
-  assert(0 <= i && i <= 6);
-  if (i > 0)
-    addword(&A, *regpointer(i, mix));
-  assert(MAG(A) < 1<<12);
+  byte I = getI(instr);
+  assert(0 <= I && I <= 6);
+  if (I > 0)
+    addword(&A, *regpointer(I, mix));
+  assert(MAG(A) < 1<<UADDRBITS);
   return A;
 }
 
@@ -198,10 +227,10 @@ bool subword(word *dest, word src) {
 // (*destA, *destX) to the result.
 // Used mainly for the MUL instruction.
 void mulword(word *destA, word *destX, word src) {
-  uint64_t prod = (uint64_t)MAG(*destA) * MAG(src);
+  AX prod = (AX)MAG(*destA) * MAG(src);
   bool prodsign = SIGN(*destA) == SIGN(src);
-  *destA = WITHSIGN((prod >> 30) & ONES(30), prodsign);
-  *destX = WITHSIGN(prod & ONES(30),         prodsign);
+  *destA = WITHSIGN((prod / (WORDMAX+1)) & ONES(UWORDBITS), prodsign);
+  *destX = WITHSIGN(prod % (WORDMAX+1), prodsign);
 }
 
 // Divide the combined 10-byte word (*destA, *destX) by src; then set
@@ -211,10 +240,10 @@ void mulword(word *destA, word *destX, word src) {
 bool divword(word *destA, word *destX, word src) {
   if (MAG(src) == 0)
     return true;
-  uint64_t w = COMBINE(*destA, *destX);
-  word quot = w / MAG(src);
-  word rem  = w % MAG(src);
-  if ((uint64_t)quot * MAG(src) + rem < w)
+  AX i = (AX)MAG(*destA) * (WORDMAX+1) + MAG(*destX);
+  uint64_t quot = (i / MAG(src)) % (WORDMAX+1);
+  uint64_t rem = (i % MAG(src)) % (WORDMAX+1);
+  if ((AX)quot * MAG(src) + rem < i)
     return true;
   bool quotsign = SIGN(*destA) == SIGN(src);
   *destA = WITHSIGN(quot, quotsign);
@@ -242,80 +271,84 @@ int compareword(word dest, word src) {
   if (!sign1 && sign2) return -1;
 }
 
+#define ONESAX(n)     ((((AX)1)<<(n)) - 1)
+
 // Shift *dest left by a specified number of bytes.
 void shiftleftword(word *dest, int amt) {
   // We cap the shift amount, because shifting a value by more than
   // its width is undefined behaviour.
   if (amt > 5) amt = 5;
-  word w = MAG(*dest);
-  w = (w << amt*6) & ONES(30);
-  *dest = WITHSIGN(w, SIGN(*dest));
+  word w = NOSIGN(*dest);
+  w = (w << amt*BYTEBITS) & ONESAX(UWORDBITS);
+  *dest = WITHSIGNW(w, SIGN(*dest));
 }
 
 // Similar to shiftleftword.
 void shiftrightword(word *dest, int amt) {
   if (amt > 5) amt = 5;
-  word w = MAG(*dest);
-  w = (w >> amt*6) & ONES(30);
-  *dest = WITHSIGN(w, SIGN(*dest));
+  word w = NOSIGN(*dest);
+  w = (w >> amt*BYTEBITS) & ONESAX(UWORDBITS);
+  *dest = WITHSIGNW(w, SIGN(*dest));
 }
 
 // Shift the combined word (*destA, *destX) left by a specified number of bytes.
 void shiftleftwords(word *destA, word *destX, int amt) {
-  uint64_t w = COMBINE(*destA, *destX);
+  AX w = COMBINE(*destA, *destX);
   if (amt > 10) amt = 10;
-  w = (w << amt*6) & ONES(60);
-  *destA = WITHSIGN((w >> 30) & ONES(30), SIGN(*destA));
-  *destX = WITHSIGN(w & ONES(30),         SIGN(*destX));
+  w = (w << amt*BYTEBITS) & ONESAX(UWORDBITS*2);
+  *destA = WITHSIGNW((w >> UWORDBITS) & ONES(UWORDBITS), SIGN(*destA));
+  *destX = WITHSIGNW(w & ONES(UWORDBITS), SIGN(*destX));
 }
 
 // Similar to shiftleftwords.
 void shiftrightwords(word *destA, word *destX, int amt) {
-  uint64_t w = ((*destA & ONES(30)) << 30) | (*destX & ONES(30));
+  AX w = ((*destA & ONES(UWORDBITS)) << UWORDBITS) | (*destX & ONES(UWORDBITS));
   if (amt > 10) amt = 10;
-  w = (w >> amt*6) & ONES(60);
-  *destA = WITHSIGN((w >> 30) & ONES(30), SIGN(*destA));
-  *destX = WITHSIGN(w & ONES(30),         SIGN(*destX));
+  w = (w >> amt*BYTEBITS) & ONESAX(UWORDBITS*2);
+  *destA = WITHSIGNW((w >> UWORDBITS) & ONES(UWORDBITS), SIGN(*destA));
+  *destX = WITHSIGNW(w & ONES(UWORDBITS), SIGN(*destX));
 }
 
 // Shift the combined word (*destA, *destX) circularly left by a
 // specified number of bytes.
 void shiftleftcirc(word *destA, word *destX, int amt) {
-  uint64_t w = (MAG(*destA) << 30) | MAG(*destX);
+  AX w = (NOSIGN(*destA) << UWORDBITS) | NOSIGN(*destX);
   amt %= 10;
-  w = (w << 6*amt) | ((w >> 60-6*amt) & ONES(60));
-  w &= ONES(60);
-  *destA = WITHSIGN(MAG(w >> 30), SIGN(*destA));
-  *destX = WITHSIGN(MAG(w),       SIGN(*destX));
+  w = (w << amt*BYTEBITS) | ((w >> UWORDBITS*2-amt*BYTEBITS) & ONESAX(UWORDBITS*2));
+  w &= ONESAX(UWORDBITS*2);
+  *destA = WITHSIGNW(NOSIGN(w >> UWORDBITS), SIGN(*destA));
+  *destX = WITHSIGNW(NOSIGN(w), SIGN(*destX));
 }
 
 // Similar to shiftleftcirc.
 void shiftrightcirc(word *destA, word *destX, int amt) {
-  uint64_t w = (MAG(*destA) << 30) | MAG(*destX);
+  AX w = (NOSIGN(*destA) << UWORDBITS) | NOSIGN(*destX);
   amt %= 10;
-  w = (w >> 6*amt) | ((w & ONES(6*amt)) << (60-6*amt));
-  w &= ONES(60);
-  *destA = WITHSIGN(MAG(w >> 30), SIGN(*destA));
-  *destX = WITHSIGN(MAG(w),       SIGN(*destX));
+  w = (w >> amt*BYTEBITS) | ((w & ONES(amt*BYTEBITS)) << (UWORDBITS*2-amt*BYTEBITS));
+  w &= ONESAX(UWORDBITS*2);
+  *destA = WITHSIGNW(NOSIGN(w >> UWORDBITS), SIGN(*destA));
+  *destX = WITHSIGNW(NOSIGN(w), SIGN(*destX));
 }
+
+#undef ONESAX
 
 // Apply the NUM instruction on the combined word (*destA, *destX).
 void wordtonum(word *destA, word *destX) {
-  word w = MAG(*destA);
-  int d1  = ((w >> 24) & ONES(6)) % 10;
-  int d2  = ((w >> 18) & ONES(6)) % 10;
-  int d3  = ((w >> 12) & ONES(6)) % 10;
-  int d4  = ((w >>  6) & ONES(6)) % 10;
-  int d5  = ( w        & ONES(6)) % 10;
-  w = MAG(*destX);
-  int d6  = ((w >> 24) & ONES(6)) % 10;
-  int d7  = ((w >> 18) & ONES(6)) % 10;
-  int d8  = ((w >> 12) & ONES(6)) % 10;
-  int d9  = ((w >>  6) & ONES(6)) % 10;
-  int d10 = ( w        & ONES(6)) % 10;
+  word w = NOSIGN(*destA);
+  int d1  = ((w >> BYTEBITS*4) & ONES(BYTEBITS)) % 10;
+  int d2  = ((w >> BYTEBITS*3) & ONES(BYTEBITS)) % 10;
+  int d3  = ((w >> BYTEBITS*2) & ONES(BYTEBITS)) % 10;
+  int d4  = ((w >> BYTEBITS*1) & ONES(BYTEBITS)) % 10;
+  int d5  = ((w >> BYTEBITS*0) & ONES(BYTEBITS)) % 10;
+  w = NOSIGN(*destX);
+  int d6  = ((w >> BYTEBITS*4) & ONES(BYTEBITS)) % 10;
+  int d7  = ((w >> BYTEBITS*3) & ONES(BYTEBITS)) % 10;
+  int d8  = ((w >> BYTEBITS*2) & ONES(BYTEBITS)) % 10;
+  int d9  = ((w >> BYTEBITS*1) & ONES(BYTEBITS)) % 10;
+  int d10 = ((w >> BYTEBITS*0) & ONES(BYTEBITS)) % 10;
   uint64_t num = d10 + d9*10 + d8*100 + d7*1000 + d6*10000 +
     d5*100000 + d4*1000000 + d3*10000000 + d2*100000000 + d1*1000000000;
-  num &= ONES(30);
+  num &= ONES(UWORDBITS);
   *destA = WITHSIGN((word)num, SIGN(*destA));
 }
 
@@ -545,11 +578,11 @@ static void printline(mix *mix, word M) {
     word w = mix->mem[addr];
 #define _ADDCHAR(b) line[c++] = mixchr((b), &extra);    \
                     if (extra) line[c++] = extra;
-    byte b1 = (w >> 24) & ONES(6); _ADDCHAR(b1)
-    byte b2 = (w >> 18) & ONES(6); _ADDCHAR(b2)
-    byte b3 = (w >> 12) & ONES(6); _ADDCHAR(b3)
-    byte b4 = (w >>  6) & ONES(6); _ADDCHAR(b4)
-    byte b5 =  w        & ONES(6); _ADDCHAR(b5)
+    byte b1 = (w >> BYTEBITS*4) & ONES(BYTEBITS); _ADDCHAR(b1)
+    byte b2 = (w >> BYTEBITS*3) & ONES(BYTEBITS); _ADDCHAR(b2)
+    byte b3 = (w >> BYTEBITS*2) & ONES(BYTEBITS); _ADDCHAR(b3)
+    byte b4 = (w >> BYTEBITS*1) & ONES(BYTEBITS); _ADDCHAR(b4)
+    byte b5 = (w >> BYTEBITS*0) & ONES(BYTEBITS); _ADDCHAR(b5)
 #undef _ADDCHAR
   }
   line[c++] = '\n'; line[c++] = '\0';
@@ -665,11 +698,11 @@ void writetape(mix *mix, word M, int unit) {
     _writechar(SIGN(w) ? '#' : '~', '\0', fp);
 #define _WRITECHAR(b) c = mixchr((b), &extra);	\
                      _writechar(c, extra, fp);
-    byte b1 = (w >> 24) & ONES(6); _WRITECHAR(b1)
-    byte b2 = (w >> 18) & ONES(6); _WRITECHAR(b2)
-    byte b3 = (w >> 12) & ONES(6); _WRITECHAR(b3)
-    byte b4 = (w >>  6) & ONES(6); _WRITECHAR(b4)
-    byte b5 =  w        & ONES(6); _WRITECHAR(b5)
+    byte b1 = (w >> BYTEBITS*4) & ONES(BYTEBITS); _WRITECHAR(b1)
+    byte b2 = (w >> BYTEBITS*3) & ONES(BYTEBITS); _WRITECHAR(b2)
+    byte b3 = (w >> BYTEBITS*2) & ONES(BYTEBITS); _WRITECHAR(b3)
+    byte b4 = (w >> BYTEBITS*1) & ONES(BYTEBITS); _WRITECHAR(b4)
+    byte b5 = (w >> BYTEBITS*0) & ONES(BYTEBITS); _WRITECHAR(b5)
 #undef _WRITECHAR
   }
   _writechar('\n', '\0', fp);
@@ -825,8 +858,8 @@ if (!checkfieldspec(F)) {				\
     _FIELDSPEC("LOADNEG")
     _CHECKADDR(INT(M))
     loadword(regpointer(C-LDAN, mix), negword(V()));
-    // If sign is not part of F, make the word negative.
-    if ((F>>3) & ONES(3) >= 1) {
+    // If sign is not part of field spec, make the word negative.
+    if (F/8 > 0) {
       word *reg = regpointer(C-LDAN, mix);
       *reg = NEG(*reg);
     }
@@ -984,25 +1017,17 @@ if (!checkfieldspec(F)) {				\
     mix->cmp = compareword(applyfield(*regpointer(C-56, mix), F), V());
   }
 
-#define MORE_THAN_TWO_BYTES(w) (MAG(w)>>12 != 0)
   for (int i = 0; i < 6; i++) {
-    if (MORE_THAN_TWO_BYTES(mix->Is[i])) {
-      mix->done = true;
-      if (i == 0)
-	mix->err = "rI1 contains more than two bytes";
-      else if (i == 1)
-	mix->err = "rI2 contains more than two bytes";
-      else if (i == 2)
-	mix->err = "rI3 contains more than two bytes";
-      else if (i == 3)
-	mix->err = "rI4 contains more than two bytes";
-      else if (i == 4)
-	mix->err = "rI5 contains more than two bytes";
-      else if (i == 5)
-	mix->err = "rI6 contains more than two bytes";
+    if (NOSIGN(mix->Is[i]) >> UADDRBITS) {
+      if (i == 0)      _STOP("rI1 contains more than two bytes")
+      else if (i == 1) _STOP("rI2 contains more than two bytes")
+      else if (i == 2) _STOP("rI3 contains more than two bytes")
+      else if (i == 3) _STOP("rI4 contains more than two bytes")
+      else if (i == 4) _STOP("rI5 contains more than two bytes")
+      else if (i == 5) _STOP("rI6 contains more than two bytes")
     }
   }
-  if (MORE_THAN_TWO_BYTES(mix->J))
+  if (NOSIGN(mix->J) >> UADDRBITS)
     _STOP("rJ contains more than two bytes")
 
   // Check up on each IO task to see if we need to do transmission

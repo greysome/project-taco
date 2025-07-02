@@ -37,11 +37,11 @@ START	IOC	0(PRINTER)	Skip to new page.
 	ORIG	PRIME+1
 	CON	2		The first prime is 2.
 	ORIG	BUF0-5
-TITLE	ALF  FIRST		Alphabetic information for
-	ALF   FIVE		title line
-	ALF   HUND
-	ALF  RED P
-	ALF  RIMES
+TITLE	ALF	FIRST		Alphabetic information for
+	ALF	 FIVE		title line
+	ALF	 HUND
+	ALF	RED P
+	ALF	RIMES
 	ORIG	BUF0+24
 	CON	BUF1+10		Each buffer refers to the other.
 	ORIG	BUF1+24

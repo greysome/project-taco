@@ -136,7 +136,7 @@ err:
   return false;
 }
 
-bool parsenum(char **s, int *val) {
+bool parsenum(char **s, uint64_t *val) {
   char *t = *s, *start = *s;
   int digits[10], *d = digits;
   int i = 0;
@@ -154,6 +154,8 @@ bool parsenum(char **s, int *val) {
   *val = digits[0];
   for (int j = 1; j < i; j++)
     *val = 10 * (*val) + digits[j];
+  if (*val > WORDMAX)
+    return false;
   return true;
 err:
   *s = start;
@@ -166,7 +168,8 @@ err:
 
 bool parseatomic(char **s, word *val, parsestate *ps) {
   char *start = *s;
-  int i;
+  uint64_t i;
+  word w;
 
   // Number?
   if (isdigit(**s) && parsenum(s, &i)) *val = POS(i);
@@ -189,8 +192,8 @@ bool parseatomic(char **s, word *val, parsestate *ps) {
       sym[4] = '0' + n%10;
       sym[5] = '\0';
     }
-    if (!lookupsym(sym, &i, ps)) goto err;
-    *val = i;
+    if (!lookupsym(sym, &w, ps)) goto err;
+    *val = w;
   }
   return true;
 err:

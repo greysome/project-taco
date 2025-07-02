@@ -21,19 +21,19 @@
 
 int displayshort(word w) {
   bool sign = SIGN(w);
-  byte b4 = (w >> 6) & ONES(6);
-  byte b5 =  w       & ONES(6);
+  byte b4 = (w >> BYTEBITS*1) & ONES(BYTEBITS);
+  byte b5 = (w >> BYTEBITS*0) & ONES(BYTEBITS);
   printf("%c %02d %02d", sign ? '+' : '-', b4, b5);
   return 1+2*3;
 }
 
 int displayword(word w) {
   bool sign = SIGN(w);
-  byte b1 = (w >> 24) & ONES(6);
-  byte b2 = (w >> 18) & ONES(6);
-  byte b3 = (w >> 12) & ONES(6);
-  byte b4 = (w >>  6) & ONES(6);
-  byte b5 =  w        & ONES(6);
+  byte b1 = (w >> BYTEBITS*4) & ONES(BYTEBITS);
+  byte b2 = (w >> BYTEBITS*3) & ONES(BYTEBITS);
+  byte b3 = (w >> BYTEBITS*2) & ONES(BYTEBITS);
+  byte b4 = (w >> BYTEBITS*1) & ONES(BYTEBITS);
+  byte b5 = (w >> BYTEBITS*0) & ONES(BYTEBITS);
   printf("%c %02d %02d %02d %02d %02d", sign ? '+' : '-', b1, b2, b3, b4, b5);
   return 1+5*3;
 }

@@ -33,13 +33,13 @@ PRINT	STJ	9F
 	ENT2	-24
 	CMP1	0F		Have we traversed the whole tree?
 	JNE	1F
-	STZ	LINE+24,2	Blank out rest of the line
+	STZ	LINE+24,2		Blank out rest of the line
 	ENT1	LINE+25,2
 	INC2	1
 	ST2	*+2(4:4)
 	DEC2	1
 	MOVE	LINE+24,2(*)
-	OUT	LINE(18)	Print the remaining stuff
+	OUT	LINE(18)		Print the remaining stuff
 	JBUS	*(18)
 9H	JMP	*
 1H	JMP	3B
@@ -50,13 +50,13 @@ Y	CON	*+2(LLINK),Y(RLINKT),1(TYPE)		y -> (-, y)
 	ALF	   Y 
 	CON	*+2(LLINK),-Y(RLINKT),5(TYPE)		- -> (*, Y)
 	ALF	   - 
-	CON	*+2(LLINK),*+12(RLINKT),6(TYPE)		* -> (3, /)
+	CON	*+2(LLINK),*+12(RLINKT),6(TYPE)	* -> (3, /)
 	ALF	   * 
 	CON	0(LLINK),*+2(RLINKT),0(TYPE)		3 -> (NULL, ln)
 	CON	3
-	CON	*+2(LLINK),-*+4(RLINKT),2(TYPE)		ln -> (+, *)
+	CON	*+2(LLINK),-*+4(RLINKT),2(TYPE)	ln -> (+, *)
 	ALF	  LN 
-	CON	*+2(LLINK),-*+2(RLINKT),4(TYPE)		+ -> (x, ln)
+	CON	*+2(LLINK),-*+2(RLINKT),4(TYPE)	+ -> (x, ln)
 	ALF	   + 
 	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 1)
 	ALF	   X 
@@ -66,7 +66,7 @@ Y	CON	*+2(LLINK),Y(RLINKT),1(TYPE)		y -> (-, y)
 	ALF	   / 
 	CON	0(LLINK),*+2(RLINKT),1(TYPE)		a -> (NULL, ^)
 	ALF	   A 
-	CON	*+2(LLINK),-*+4(RLINKT),8(TYPE)		^ -> (x, /)
+	CON	*+2(LLINK),-*+4(RLINKT),8(TYPE)	^ -> (x, /)
 	ALF	  ** 
 	CON	0(LLINK),*+2(RLINKT),1(TYPE)		x -> (NULL, 2)
 	ALF	   X 

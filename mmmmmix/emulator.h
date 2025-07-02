@@ -25,32 +25,62 @@ typedef enum {
   CARDREADER, CARDPUNCH, LINEPRINTER, TERMINAL, PAPERTAPE
 } IOdevice;
 
-// A byte in MIX holds 64 values, hence is actually 6-bit.
-// The first 2 bits are unused.
+//// A byte in MIX holds 64 or 100 values (depending on whether we
+//// work in DECIMAL). Thus the first bit is always unused.
 typedef uint8_t byte;
-// A word consists of 5 bytes and a sign, hence 31-bit.
-// The first bit is unused.
-// This type is also used for index and jump registers out of
-// convenience, even though they are supposed to have 2 bytes.
-typedef uint32_t word;
+#ifdef DECIMAL
+  //// A word consists of 5 bytes and a sign.
+  //// In DECIMAL it takes up 36 bits, so the first 28 bits are unused.
+  ////
+  //// This type is also used for index and jump registers out of
+  //// convenience, even though they are supposed to have 2 bytes.
+  typedef uint64_t    word;
+  typedef __uint128_t AX;
+  #define WORDBITS    36
+  #define UWORDBITS   35
+  #define WORDMAX     9999999999UL
+  #define ADDRBITS    15
+  #define UADDRBITS   14
+  #define BYTEBITS    7
+  #define BYTEMAX     99
+#else
+  //// 31 bits in BINARY. The first bit is unused.
+  typedef uint32_t    word;
+  typedef uint64_t    AX;
+  #define WORDBITS    31
+  #define UWORDBITS   30
+  #define WORDMAX     ONES(UWORDBITS)
+  #define ADDRBITS    13
+  #define UADDRBITS   12
+  #define BYTEBITS    6
+  #define BYTEMAX     63
+#endif
 
-// Useful macros for manipulating words
-#define ONES(n)       (((uint64_t)1<<(n)) - 1)
-// Extract information from word
-#define MAG(w)        ((w) & ONES(30))  // Unset the sign bit
-#define SIGN(w)       (((w)>>30) & 1)   // Get the sign bit
-// Get integral value of word
-#define INT(w)        (SIGN(w) ? MAG(w) : -MAG(w))
-// Construct word from an integer:
-#define POS(w)        ((w) | (1<<30))
-#define NEG(w)        MAG(w)
-#define WITHSIGN(w,s) ((s ? POS(w) : NEG(w)))
+//// Useful macros for manipulating words
+#define ONES(n)        ((1ULL<<(n)) - 1)
+#define SIGN(w)        (((w)>>UWORDBITS) & 1)   // Get the sign bit
+
+#if DECIMAL
+  uint64_t MAG(word w);
+  word    NEG(uint64_t i);
+  #define POS(i)       (NEG(i) | (1ULL<<UWORDBITS))
+#else
+  #define MAG(w)       ((w) & ONES(UWORDBITS))  // Unset the sign bit
+  #define NEG(i)       MAG(i)
+  #define POS(i)       ((i) | (1ULL<<UWORDBITS))
+#endif
+
+#define INT(w)         (SIGN(w) ? MAG(w) : -MAG(w))
+#define WITHSIGN(i,s)  ((s) ? POS(i) : NEG(i))
+#define POSW(w)        ((w) | (1ULL<<UWORDBITS))
+#define NOSIGN(w)      ((w) & ONES(UWORDBITS))
+#define WITHSIGNW(w,s) ((s) ? POSW(w) : NOSIGN(w))
 // For operations involving rA and rX
-#define COMBINE(w,v)  ((MAG(w) << 30) | MAG(v))
-// Macros for 13-bit addresses
-#define SIGNA(A)      (((A)>>12) & 1)
-#define MAGA(A)       ((A) & ONES(12))
-#define INTA(A)       (SIGNA(A) ? MAGA(A) : -MAGA(A))
+#define COMBINE(A,X)   (AX)((NOSIGN(A) << UWORDBITS) | NOSIGN(X))
+// Macros for 2-byte addresses
+#define SIGNA(a)       (((a)>>UADDRBITS) & 1)
+#define MAGA(a)        MAG((a) & ONES(UADDRBITS))
+#define INTA(a)        (SIGNA(a) ? MAGA(a) : -MAGA(a))
 
 // Data relevant to the operation of each IO device
 typedef struct {

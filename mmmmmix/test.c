@@ -8,11 +8,48 @@ extern bool writetape(mix *, word, int);
 void testemulator() {
   mix mix;
 
+#ifdef DECIMAL
+  // TEST: POS, NEG, MAG
+  assert(NEG(6362616059ULL) == 0b001111110111110011110101111000111011);
+  assert(POS(6362616059ULL) == 0b101111110111110011110101111000111011);
+  assert(NEG(5ULL) == 0b101);
+  assert(MAG(POS(1213141516ULL)) == 1213141516ULL);
+
+  // TEST: bitwise representation of MIX words
+  assert(WORD(true, 1, 2, 3, 4, 5)       == 0b100000010000010000001100001000000101);
+  //                                          +      1      2      3      4      5
+  assert(WORD(false, 63, 62, 61, 60, 59) == 0b001111110111110011110101111000111011);
+  //                                          -     63     62     61     60     59
+  assert(MAG(WORD(true, 63, 62, 61, 60, 59)) == 6362616059);
+
+  // TEST: bitwise representation of wordesses
+  assert(ADDR(1)     == 0b100000000000001);
+  //                      +      0      1
+  assert(ADDR(-4095) == 0b001010001011111);
+  //                      -     40     95
+
+  // TEST: bitwise representation of MIX instructions
+  word w = INSTR(ADDR(2000), 2, 3, 8);
+  //                  LDA 2000,2(0:3)
+  assert(w == 0b100101000000000000001000000110001000);
+  //            +     20      0      2      3      8
+
+  // TEST: fields of a MIX instruction
+  assert(getA(w) == 0b100101000000000);
+  //                  +     20      0
+  assert(getI(w) == 0b0000010);
+  //                        2
+  assert(getF(w) == 0b0000011);
+  //                     0  3
+  assert(getC(w) == 0b0001000);
+  //                        8
+#else
   // TEST: bitwise representation of MIX words
   assert(WORD(true, 1, 2, 3, 4, 5)       == 0b01000001000010000011000100000101);
   //                                           +     1     2     3     4     5
   assert(WORD(false, 63, 62, 61, 60, 59) == 0b00111111111110111101111100111011);
   //                                           -    63    62    61    60    59
+  assert(MAG(WORD(true, 63, 62, 61, 60, 59)) == 0b111111111110111101111100111011);
 
   // TEST: bitwise representation of wordesses
   assert(ADDR(1)     == 0b0001000000000001);
@@ -35,13 +72,15 @@ void testemulator() {
   //                    0  3
   assert(getC(w) == 0b001000);
   //                       8
+#endif
+
   mix.Is[1] = POS(5);
   assert(getM(w,&mix) == POS(2005));
   mix.Is[1] = NEG(2005);
   assert(getM(w,&mix) == NEG(5));
 
   // TEST: loading words
-  // Examples taken from TAOCP vol 1, p129
+  // Examples taken from 1.129
   mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
 
   loadword(&mix.A, mix.mem[1000]);
@@ -88,53 +127,93 @@ void testemulator() {
 
   // TEST: addition of words
   // 1. Both positive, no overflow
+#ifdef DECIMAL
+  mix.A = WORD(true, 19, 18, 1, 2, 22);
+  w     = WORD(true,  1, 36, 5, 0, 89);
+  bool overflow = addword(&mix.A, w);
+  assert(!overflow);
+  assert(mix.A == WORD(true, 20, 54, 6, 3, 11));
+#else
   mix.A = WORD(true, 19, 18, 1, 2, 22);
   w     = WORD(true,  1, 36, 5, 0, 50);
   bool overflow = addword(&mix.A, w);
   assert(!overflow);
   assert(mix.A == WORD(true, 20, 54, 6, 3, 8));
+#endif
 
   // 2. Both positive, overflow
+#ifdef DECIMAL
+  mix.A = WORD(true, 69, 18, 1, 2, 22);
+  w     = WORD(true, 50, 36, 5, 0, 50);
+  overflow = addword(&mix.A, w);
+  assert(overflow);
+  assert(mix.A == WORD(true, 19, 54, 6, 2, 72));
+#else
   mix.A = WORD(true, 19, 18, 1, 2, 22);
   w     = WORD(true, 50, 36, 5, 0, 50);
   overflow = addword(&mix.A, w);
   assert(overflow);
   assert(mix.A == WORD(true, 5, 54, 6, 3, 8));
+#endif
 
   // 4. Both negative, overflow
+#ifdef DECIMAL
+  mix.A = WORD(false, 69, 18, 1, 2, 22);
+  w     = WORD(false, 50, 36, 5, 0, 50);
+  overflow = addword(&mix.A, w);
+  assert(overflow);
+  assert(mix.A == WORD(false, 19, 54, 6, 2, 72));
+#else
   mix.A = WORD(false, 19, 18, 1, 2, 22);
   w     = WORD(false, 50, 36, 5, 0, 50);
   overflow = addword(&mix.A, w);
   assert(overflow);
   assert(mix.A == WORD(false, 5, 54, 6, 3, 8));
+#endif
 
   // 5. X-Y, X>Y
   mix.A = WORD( true, 19, 18, 1, 2, 22);
   w     = WORD(false,  1, 36, 5, 0, 50);
   overflow = addword(&mix.A, w);
   assert(!overflow);
+#ifdef DECIMAL
+  assert(mix.A == WORD(true, 17, 81, 96, 1, 72));
+#else
   assert(mix.A == WORD(true, 17, 45, 60, 1, 36));
+#endif
 
   // 6. X-Y, X<Y
   mix.A = WORD( true, 19, 18, 1, 2, 22);
   w     = WORD(false, 50, 36, 5, 0, 50);
   overflow = addword(&mix.A, w);
   assert(!overflow);
+#ifdef DECIMAL
+  assert(mix.A == WORD(false, 31, 18, 3, 98, 28));
+#else
   assert(mix.A == WORD(false, 31, 18, 3, 62, 28));
+#endif
 
   // 7. -X+Y, X>Y
   mix.A = WORD(false, 19, 18, 1, 2, 22);
   w     = WORD( true,  1, 36, 5, 0, 50);
   overflow = addword(&mix.A, w);
   assert(!overflow);
+#ifdef DECIMAL
+  assert(mix.A == WORD(false, 17, 81, 96, 1, 72));
+#else
   assert(mix.A == WORD(false, 17, 45, 60, 1, 36));
+#endif
 
   // 8. -X+Y, X<Y
   mix.A = WORD(false, 19, 18, 1, 2, 22);
   w     = WORD( true, 50, 36, 5, 0, 50);
   overflow = addword(&mix.A, w);
   assert(!overflow);
+#ifdef DECIMAL
+  assert(mix.A == WORD(true, 31, 18, 3, 98, 28));
+#else
   assert(mix.A == WORD(true, 31, 18, 3, 62, 28));
+#endif
 
   // 9. Partial fields
   mix.A = WORD( true, 19, 18, 1, 2, 22);
@@ -154,8 +233,19 @@ void testemulator() {
   addword(&mix.A, w);
   assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
 
+#ifdef DECIMAL
+  mix.A = WORD(true, 99, 99, 99, 99, 99);
+  w     = WORD(true,  0,  0,  0,  0,  1);
+  addword(&mix.A, w);
+  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
+
+  mix.A = WORD(false, 99, 99, 99, 99, 99);
+  w     = WORD(false,  0,  0,  0,  0,  1);
+  addword(&mix.A, w);
+  assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
+#else
   mix.A = WORD(true, 63, 63, 63, 63, 63);
-  w     = WORD(true,  0,  0,  0,  0, 1);
+  w     = WORD(true,  0,  0,  0,  0,  1);
   addword(&mix.A, w);
   assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
 
@@ -163,6 +253,7 @@ void testemulator() {
   w     = WORD(false,  0,  0,  0,  0,  1);
   addword(&mix.A, w);
   assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
+#endif
 
   // TEST: negating words
   w = WORD(true, 1, 2, 3, 4, 5);
@@ -173,20 +264,34 @@ void testemulator() {
   w     = WORD(false, 50, 36, 5, 0, 50);
   overflow = subword(&mix.A, w);
   assert(!overflow);
+#ifdef DECIMAL
+  assert(mix.A == WORD(true, 31, 18, 3, 98, 28));
+#else
   assert(mix.A == WORD(true, 31, 18, 3, 62, 28));
+#endif
 
   // TEST: multiplication of words
   mix.A = WORD(false, 50, 0, 1, 48, 4);
   w     = WORD(false,  2, 0, 0,  0, 0);
   mulword(&mix.A, &mix.X, w);
+#ifdef DECIMAL
+  assert(mix.A == WORD(true, 1, 0, 0, 2, 96));
+  assert(mix.X == WORD(true, 8, 0, 0, 0, 0));
+#else
   assert(mix.A == WORD(true, 1, 36, 0, 3, 32));
   assert(mix.X == WORD(true, 8, 0, 0, 0, 0));
+#endif
 
   mix.A = WORD(false, 0, 0, 0, 1, 48);
   w     = WORD(false, 2, 9, 9, 9,  9);
   mulword(&mix.A, &mix.X, applyfield(w, 9));
+#ifdef DECIMAL
+  assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
+  assert(mix.X == WORD(false, 0, 0, 0, 2, 96));
+#else
   assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
   assert(mix.X == WORD(false, 0, 0, 0, 3, 32));
+#endif
 
   // TEST: division of words
   mix.A = NEG(0);
@@ -224,7 +329,7 @@ void testemulator() {
   mix.X = WORD( true, 37, 57, 47, 30, 30);
   wordtonum(&mix.A, &mix.X);
   assert(mix.A == NEG(12977700));
-  assert(mix.X = WORD(true, 37, 57, 47, 30, 30));
+  assert(mix.X == WORD(true, 37, 57, 47, 30, 30));
 
   // TEST: num to char
   numtochar(&mix.A, &mix.X);
@@ -415,7 +520,7 @@ void testassembler() {
   assert(!parseoperator(&line, &C, &F));
 
   // TEST: parsenum
-  int num;
+  uint64_t num;
   line = "00052\n";
   assert(parsenum(&line, &num));
   assert(num == 52);
@@ -443,6 +548,18 @@ void testassembler() {
   assert(parseexpr(&line, &w, &ps));
   assert(w == POS(5));
 
+#ifdef DECIMAL
+  line = "9999999999\n";
+  assert(parseexpr(&line, &w, &ps));
+  assert(w == POS(9999999999));
+#else
+  line = "1073741824\n";
+  assert(!parseexpr(&line, &w, &ps));
+  line = "1073741823\n";
+  assert(parseexpr(&line, &w, &ps));
+  assert(w == POS(1073741823));
+#endif
+
   line = "+5\n";
   assert(parseexpr(&line, &w, &ps));
   assert(w == POS(5));
@@ -461,7 +578,11 @@ void testassembler() {
 
   line = "1//3\n";
   assert(parseexpr(&line, &w, &ps));
+#ifdef DECIMAL
+  assert(w == POS(3333333333));
+#else
   assert(w == POS(357913941));
+#endif
 
   line = "1:3\n";
   assert(parseexpr(&line, &w, &ps));
@@ -591,9 +712,9 @@ void testassembler() {
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   assert(ps.futurerefs[0].resolved);
   assert(ps.futurerefs[1].resolved);
-  assert(getA(mix.mem[0]) == (1|(1<<12)));
-  assert(getA(mix.mem[2]) == (4|(1<<12)));
-  assert(getA(mix.mem[3]) == (5|(1<<12)));
+  assert(getA(mix.mem[0]) == (1|(1<<UADDRBITS)));
+  assert(getA(mix.mem[2]) == (4|(1<<UADDRBITS)));
+  assert(getA(mix.mem[3]) == (5|(1<<UADDRBITS)));
   assert(mix.mem[4] == POS(0));
   assert(mix.mem[5] == POS(2000));
   assert(lookupsym("FOO", &w, &ps));
@@ -623,8 +744,8 @@ void testassembler() {
   assert(w == POS(4));
   line = "\tEND\t1000\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(getA(mix.mem[1]) == (4|(1<<12)));
-  assert(getA(mix.mem[2]) == (0|(1<<12)));
+  assert(getA(mix.mem[1]) == (4|(1<<UADDRBITS)));
+  assert(getA(mix.mem[2]) == (0|(1<<UADDRBITS)));
 
   // TEST: multiple of the same undefined symbol
   initparsestate(&ps);
@@ -634,8 +755,8 @@ void testassembler() {
   assert(parseline(line, &ps, &mix, &extraparseinfo));
   line = "\tEND\t1000\n";
   assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(getA(mix.mem[0]) == (2|(1<<12)));
-  assert(getA(mix.mem[1]) == (2|(1<<12)));
+  assert(getA(mix.mem[0]) == (2|(1<<UADDRBITS)));
+  assert(getA(mix.mem[1]) == (2|(1<<UADDRBITS)));
 
   // TEST: no A/I/F field, but with comment
   initparsestate(&ps);
