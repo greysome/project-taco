@@ -1,9 +1,5 @@
 The same introductory remarks as taocp-ch1-solutions.txt apply.
 
-
-
-
-
 2.2.1-8 ---------------------
 
 If n>=5, then any permutation starting with n13... works. If n1 can be
@@ -1473,9 +1469,9 @@ with comes from the following configuration:
               .      .        .     .        / \
 8            .      .        .     .        U   F
             .      .        .     / \
-4          .      .        .     R   F
+4          .      .        .     U   F
           .      .        / \
-2        .  	.        U   F
+2        .  	.          U   F
         / \    / \
 1      U   F  U   F
 

@@ -10,9 +10,6 @@ Notes on notation:
   numbers.
 - x^k# and x^k` denote rising and falling powers respectively.
 
-
-
-
 1.2.1-13 --------------------
 
 A3. T <= 3(n-r-1)+2
