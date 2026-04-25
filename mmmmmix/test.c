@@ -1,653 +1,790 @@
-#include "emulator.h"
+#include <stdio.h>
 #include "assembler.h"
+#include "emulator.h"
+#include "mmm.h"
 
-extern bool controltape(mix *, word, int);
-extern bool readtape(mix *, word, int);
-extern bool writetape(mix *, word, int);
+void test_emulator() {
+  Mix mix;
+  word w;
+  signmag sm;
+  int64_t i;
 
-void testemulator() {
-  mix mix;
+  // TEST: conversions between word, signmag, int
+  fprintf(stderr, "TESTING: conversion between word, signmag, int...\n");
 
-  // TEST: bitwise representation of MIX words
-  assert(WORD(true, 1, 2, 3, 4, 5)       == 0b01000001000010000011000100000101);
-  //                                           +     1     2     3     4     5
-  assert(WORD(false, 63, 62, 61, 60, 59) == 0b00111111111110111101111100111011);
-  //                                           -    63    62    61    60    59
+  w = build_word(false, 1, 2, 3, 4, 5);
+  assert(w.sign == false);
+  assert(w.bytes[0] == 1);
+  assert(w.bytes[1] == 2);
+  assert(w.bytes[2] == 3);
+  assert(w.bytes[3] == 4);
+  assert(w.bytes[4] == 5);
 
-  // TEST: bitwise representation of wordesses
-  assert(ADDR(1)     == 0b0001000000000001);
-  //                         +           1
-  assert(ADDR(-4095) == 0b0000111111111111);
-  //                         -        4096
+  sm = word_to_signmag(w);
+  assert(sm.sign == false);
+  assert(sm.mag == 1ULL * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	 + 2 * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	 + 3 * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	 + 4 * MIX_BYTE_SIZE
+	 + 5);
+  assert(word_eq(signmag_to_word(sm), w));
 
-  // TEST: bitwise representation of MIX instructions
-  word w = INSTR(ADDR(2000), 2, 3, 8);
-  //                  LDA 2000,2(0:3)
-  assert(w == 0b01011111010000000010000011001000);
-  //             +        2000     2     3     8
+  i = word_to_int(w);
+  assert(i == -1LL * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	 - 2 * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	 - 3 * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	 - 4 * MIX_BYTE_SIZE
+	 - 5);
+  assert(word_eq(int_to_word(i), w));
+  assert(signmag_to_int(sm) == i);
 
-  // TEST: fields of a MIX instruction
-  assert(getA(w) == 0b0001011111010000);
-  //                     +        2000
-  assert(getI(w) == 0b000010);
-  //                       2
-  assert(getF(w) == 0b000011);
-  //                    0  3
-  assert(getC(w) == 0b001000);
-  //                       8
-  mix.Is[1] = POS(5);
-  assert(getM(w,&mix) == POS(2005));
-  mix.Is[1] = NEG(2005);
-  assert(getM(w,&mix) == NEG(5));
+  w = pos_word(1ULL * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	       + 2 * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	       + 3 * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	       + 4 * MIX_BYTE_SIZE
+	       + 5);
+  assert(w.sign == true);
+  assert(w.bytes[0] == 1);
+  assert(w.bytes[1] == 2);
+  assert(w.bytes[2] == 3);
+  assert(w.bytes[3] == 4);
+  assert(w.bytes[4] == 5);
 
-  // TEST: loading words
-  // Examples taken from TAOCP vol 1, p129
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
+  w = neg_word(6ULL * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	       + 7 * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	       + 8 * MIX_BYTE_SIZE * MIX_BYTE_SIZE
+	       + 9 * MIX_BYTE_SIZE
+	       + 10);
+  assert(w.sign == false);
+  assert(w.bytes[0] == 6);
+  assert(w.bytes[1] == 7);
+  assert(w.bytes[2] == 8);
+  assert(w.bytes[3] == 9);
+  assert(w.bytes[4] == 10);
+  w = set_sign(w, true);
+  assert(w.sign == true);
 
-  loadword(&mix.A, mix.mem[1000]);
-  assert(mix.A == WORD(false, 1, 2, 3, 4, 5));
-  loadword(&mix.A, applyfield(mix.mem[1000], 13));
-  assert(mix.A == WORD(true, 1, 2, 3, 4, 5));
-  loadword(&mix.A, applyfield(mix.mem[1000], 29));
-  assert(mix.A == WORD(true, 0, 0, 3, 4, 5));
-  loadword(&mix.A, applyfield(mix.mem[1000], 3));
-  assert(mix.A == WORD(false, 0, 0, 1, 2, 3));
-  loadword(&mix.Is[0], applyfield(mix.mem[1000], 36));
-  assert(mix.Is[0] == WORD(true, 0, 0, 0, 0, 4));
-  loadword(&mix.Is[0], applyfield(mix.mem[1000], 0));
-  assert(mix.Is[0] == WORD(false, 0, 0, 0, 0, 0));
-  loadword(&mix.Is[0], applyfield(mix.mem[1000], 9));
-  assert(mix.Is[0] == WORD(true, 0, 0, 0, 0, 1));
+  // TEST: MIX instruction fields
+  fprintf(stderr, "TESTING: MIX instruction fields...\n");
+
+  w = build_instr((signmag) {true, 2000}, 2, 3, 8); // LDA 2000,2(0:3)
+  assert(signmag_eq(get_A(w), (signmag) {true, 2000}));
+  assert(get_I(w) == 2);
+  assert(get_F(w) == 3);
+  assert(get_C(w) == 8);
+
+  mix.I[1] = pos_word(5);
+  assert(get_M(w, &mix) == 2005);
+  mix.I[1] = neg_word(2005);
+  assert(get_M(w, &mix) == -5);
+
+  // TEST: extracting bytes
+  fprintf(stderr, "TESTING: extracting bytes...\n");
+
+  w = build_word(false, 1, 2, 3, 4, 5);
+  assert(word_eq(extract_bytes(w, 3*8+5), build_word(true, 0, 0, 3, 4, 5)));
+  assert(word_eq(extract_bytes(w, 0*8+3), build_word(false, 0, 0, 1, 2, 3)));
+  assert(word_eq(extract_bytes(w, 4*8+4), build_word(true, 0, 0, 0, 0, 4)));
+  assert(word_eq(extract_bytes(w, 0*8+0), build_word(false, 0, 0, 0, 0, 0)));
+  assert(word_eq(extract_bytes(w, 1*8+1), build_word(true, 0, 0, 0, 0, 1)));
 
   // TEST: storing words
-  // Examples taken from TAOCP vol 1, p130
-  mix.A         = WORD(true, 6, 7, 8, 9, 0);
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
-  storeword(&mix.mem[1000], mix.A, 5);
-  assert(mix.mem[1000] == WORD(true, 6, 7, 8, 9, 0));
+  fprintf(stderr, "TESTING: storing words...\n");
 
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
-  storeword(&mix.mem[1000], mix.A, 13);
-  assert(mix.mem[1000] == WORD(false, 6, 7, 8, 9, 0));
+  mix.A         = build_word(true, 6, 7, 8, 9, 0);
+  mix.mem[1000] = build_word(false, 1, 2, 3, 4, 5);
+  store_word(&mix.mem[1000], mix.A, 0*8+5);
+  assert(word_eq(mix.mem[1000], build_word(true, 6, 7, 8, 9, 0)));
 
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
-  storeword(&mix.mem[1000], mix.A, 45);
-  assert(mix.mem[1000] == WORD(false, 1, 2, 3, 4, 0));
+  mix.mem[1000] = build_word(false, 1, 2, 3, 4, 5);
+  store_word(&mix.mem[1000], mix.A, 1*8+5);
+  assert(word_eq(mix.mem[1000], build_word(false, 6, 7, 8, 9, 0)));
 
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
-  storeword(&mix.mem[1000], mix.A, 18);
-  assert(mix.mem[1000] == WORD(false, 1, 0, 3, 4, 5));
+  mix.mem[1000] = build_word(false, 1, 2, 3, 4, 5);
+  store_word(&mix.mem[1000], mix.A, 5*8+5);
+  assert(word_eq(mix.mem[1000], build_word(false, 1, 2, 3, 4, 0)));
 
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
-  storeword(&mix.mem[1000], mix.A, 19);
-  assert(mix.mem[1000] == WORD(false, 1, 9, 0, 4, 5));
+  mix.mem[1000] = build_word(false, 1, 2, 3, 4, 5);
+  store_word(&mix.mem[1000], mix.A, 2*8+2);
+  assert(word_eq(mix.mem[1000], build_word(false, 1, 0, 3, 4, 5)));
 
-  mix.mem[1000] = WORD(false, 1, 2, 3, 4, 5);
-  storeword(&mix.mem[1000], mix.A, 1);
-  assert(mix.mem[1000] == WORD(true, 0, 2, 3, 4, 5));
+  mix.mem[1000] = build_word(false, 1, 2, 3, 4, 5);
+  store_word(&mix.mem[1000], mix.A, 2*8+3);
+  assert(word_eq(mix.mem[1000], build_word(false, 1, 9, 0, 4, 5)));
 
-  // TEST: addition of words
-  // 1. Both positive, no overflow
-  mix.A = WORD(true, 19, 18, 1, 2, 22);
-  w     = WORD(true,  1, 36, 5, 0, 50);
-  bool overflow = addword(&mix.A, w);
+  mix.mem[1000] = build_word(false, 1, 2, 3, 4, 5);
+  store_word(&mix.mem[1000], mix.A, 0*8+1);
+  assert(word_eq(mix.mem[1000], build_word(true, 0, 2, 3, 4, 5)));
+
+  // TEST: adding words
+  fprintf(stderr, "TESTING: adding words...\n");
+
+#define BUILD_INT(sign, a, b, c, d, e)					\
+  sign ((int64_t) (a) * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE \
+   + (b) * MIX_BYTE_SIZE * MIX_BYTE_SIZE * MIX_BYTE_SIZE		\
+   + (c) * MIX_BYTE_SIZE * MIX_BYTE_SIZE				\
+   + (d) * MIX_BYTE_SIZE						\
+   + (e))
+
+  // -- 1. Both positive, no overflow
+  mix.A = build_word(true, 19, 18, 1, 2, 22);
+  w     = build_word(true,  1, 36, 5, 0, 50);
+  bool overflow = add_word(&mix.A, w);
   assert(!overflow);
-  assert(mix.A == WORD(true, 20, 54, 6, 3, 8));
+  // Convert word to int for byte-size-agnostic testing
+  assert(word_to_int(mix.A) == BUILD_INT(+, 20, 54, 6, 2, 72));
 
-  // 2. Both positive, overflow
-  mix.A = WORD(true, 19, 18, 1, 2, 22);
-  w     = WORD(true, 50, 36, 5, 0, 50);
-  overflow = addword(&mix.A, w);
+  // -- 2. Both positive, overflow
+  mix.A = build_word(true, 59, 18, 1, 2, 22);
+  w     = build_word(true, 50, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, w);
   assert(overflow);
-  assert(mix.A == WORD(true, 5, 54, 6, 3, 8));
+  assert(word_to_int(mix.A) == BUILD_INT(+, 109, 54, 6, 2, 72) - MIX_MAX);
 
-  // 4. Both negative, overflow
-  mix.A = WORD(false, 19, 18, 1, 2, 22);
-  w     = WORD(false, 50, 36, 5, 0, 50);
-  overflow = addword(&mix.A, w);
+  // -- 3. Both negative, overflow
+  mix.A = build_word(false, 59, 18, 1, 2, 22);
+  w     = build_word(false, 50, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, w);
   assert(overflow);
-  assert(mix.A == WORD(false, 5, 54, 6, 3, 8));
+  assert(word_to_int(mix.A) == BUILD_INT(-, 109, 54, 6, 2, 72) + MIX_MAX);
 
-  // 5. X-Y, X>Y
-  mix.A = WORD( true, 19, 18, 1, 2, 22);
-  w     = WORD(false,  1, 36, 5, 0, 50);
-  overflow = addword(&mix.A, w);
+  // -- 4. X-Y, X>Y
+  mix.A = build_word( true, 19, 18, 1, 2, 22);
+  w     = build_word(false,  1, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, w);
   assert(!overflow);
-  assert(mix.A == WORD(true, 17, 45, 60, 1, 36));
+  assert(word_to_int(mix.A) == BUILD_INT(+, 18, -18, -4, 2, -28));
 
-  // 6. X-Y, X<Y
-  mix.A = WORD( true, 19, 18, 1, 2, 22);
-  w     = WORD(false, 50, 36, 5, 0, 50);
-  overflow = addword(&mix.A, w);
+  // -- 5. X-Y, X<Y
+  mix.A = build_word( true, 19, 18, 1, 2, 22);
+  w     = build_word(false, 50, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, w);
   assert(!overflow);
-  assert(mix.A == WORD(false, 31, 18, 3, 62, 28));
+  assert(word_to_int(mix.A) == BUILD_INT(-, 31, 18, 4, -2, 28));
 
-  // 7. -X+Y, X>Y
-  mix.A = WORD(false, 19, 18, 1, 2, 22);
-  w     = WORD( true,  1, 36, 5, 0, 50);
-  overflow = addword(&mix.A, w);
+  // -- 6. -X+Y, X>Y
+  mix.A = build_word(false, 19, 18, 1, 2, 22);
+  w     = build_word( true,  1, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, w);
   assert(!overflow);
-  assert(mix.A == WORD(false, 17, 45, 60, 1, 36));
+  assert(word_to_int(mix.A) == BUILD_INT(-, 18, -18, -4, 2, -28));
 
-  // 8. -X+Y, X<Y
-  mix.A = WORD(false, 19, 18, 1, 2, 22);
-  w     = WORD( true, 50, 36, 5, 0, 50);
-  overflow = addword(&mix.A, w);
+  // -- 7. -X+Y, X<Y
+  mix.A = build_word(false, 19, 18, 1, 2, 22);
+  w     = build_word( true, 50, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, w);
   assert(!overflow);
-  assert(mix.A == WORD(true, 31, 18, 3, 62, 28));
+  assert(word_to_int(mix.A) == BUILD_INT(+, 31, 18, 4, -2, 28));
 
-  // 9. Partial fields
-  mix.A = WORD( true, 19, 18, 1, 2, 22);
-  w     = WORD(false,  1, 36, 5, 0, 50);
-  overflow = addword(&mix.A, applyfield(w, 27));
+  // -- 8. Partial fields
+  mix.A = build_word( true, 19, 18, 1, 2, 22);
+  w     = build_word(false,  1, 36, 5, 0, 50);
+  overflow = add_word(&mix.A, extract_bytes(w, 3*8+3));
   assert(!overflow);
-  assert(mix.A == WORD(true, 19, 18, 1, 2, 27));
+  assert(word_to_int(mix.A) == BUILD_INT(+, 19, 18, 1, 2, 27));
 
-  // 10. Result = 0, sign of A should be unchanged
-  mix.A = WORD( true, 0, 0, 0, 0, 5);
-  w     = WORD(false, 0, 0, 0, 0, 5);
-  addword(&mix.A, w);
-  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
+  // -- 9. Result = 0, sign of A should be unchanged
+  mix.A = build_word( true, 0, 0, 0, 0, 5);
+  w     = build_word(false, 0, 0, 0, 0, 5);
+  add_word(&mix.A, w);
+  assert(word_to_int(mix.A) == BUILD_INT(+, 0, 0, 0, 0, 0));
 
-  mix.A = WORD(false, 0, 0, 0, 0, 5);
-  w     = WORD( true, 0, 0, 0, 0, 5);
-  addword(&mix.A, w);
-  assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
+  mix.A = build_word(false, 0, 0, 0, 0, 5);
+  w     = build_word( true, 0, 0, 0, 0, 5);
+  add_word(&mix.A, w);
+  assert(word_to_int(mix.A) == BUILD_INT(+, 0, 0, 0, 0, 0));
 
-  mix.A = WORD(true, 63, 63, 63, 63, 63);
-  w     = WORD(true,  0,  0,  0,  0, 1);
-  addword(&mix.A, w);
-  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
+  mix.A = build_word(true, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1);
+  w     = build_word(true, 0, 0, 0, 0, 1);
+  add_word(&mix.A, w);
+  assert(word_to_int(mix.A) == BUILD_INT(+, 0, 0, 0, 0, 0));
 
-  mix.A = WORD(false, 63, 63, 63, 63, 63);
-  w     = WORD(false,  0,  0,  0,  0,  1);
-  addword(&mix.A, w);
-  assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
+  mix.A = build_word(false, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1, MIX_BYTE_SIZE-1);
+  w     = build_word(false, 0, 0, 0, 0, 1);
+  add_word(&mix.A, w);
+  assert(word_to_int(mix.A) == BUILD_INT(-, 0, 0, 0, 0, 0));
 
   // TEST: negating words
-  w = WORD(true, 1, 2, 3, 4, 5);
-  assert(negword(w) == WORD(false, 1, 2, 3, 4, 5));
+  fprintf(stderr, "TESTING: negating words...\n");
+  w = build_word(true, 1, 2, 3, 4, 5);
+  assert(word_eq(negate_word(w), build_word(false, 1, 2, 3, 4, 5)));
 
   // TEST: subtracting words
-  mix.A = WORD(false, 19, 18, 1, 2, 22);
-  w     = WORD(false, 50, 36, 5, 0, 50);
-  overflow = subword(&mix.A, w);
+  fprintf(stderr, "TESTING: subtracting words...\n");
+  mix.A = build_word(false, 19, 18, 1, 2, 22);
+  w     = build_word(false, 50, 36, 5, 0, 50);
+  overflow = sub_word(&mix.A, w);
   assert(!overflow);
-  assert(mix.A == WORD(true, 31, 18, 3, 62, 28));
+  assert(word_to_int(mix.A) == BUILD_INT(+, 31, 18, 4, -2, 28));
 
   // TEST: multiplication of words
-  mix.A = WORD(false, 50, 0, 1, 48, 4);
-  w     = WORD(false,  2, 0, 0,  0, 0);
-  mulword(&mix.A, &mix.X, w);
-  assert(mix.A == WORD(true, 1, 36, 0, 3, 32));
-  assert(mix.X == WORD(true, 8, 0, 0, 0, 0));
+  fprintf(stderr, "TESTING: multiplying words...\n");
+  mix.A = build_word(false, 50, 0, 1, 48, 4);
+  w     = build_word(false,  2, 0, 0,  0, 0);
+  mul_word(&mix.A, &mix.X, w);
+  assert(word_to_int(mix.A) == BUILD_INT(+, 0, 100, 0, 2, 96));
+  assert(word_to_int(mix.X) == BUILD_INT(+, 8, 0, 0, 0, 0));
 
-  mix.A = WORD(false, 0, 0, 0, 1, 48);
-  w     = WORD(false, 2, 9, 9, 9,  9);
-  mulword(&mix.A, &mix.X, applyfield(w, 9));
-  assert(mix.A == WORD(false, 0, 0, 0, 0, 0));
-  assert(mix.X == WORD(false, 0, 0, 0, 3, 32));
+  // TODO: make this test byte-size-agnostic
+  mix.A = build_word(false, 0, 0, 0, 1, 48);
+  w     = build_word(false, 2, 9, 9, 9,  9);
+  mul_word(&mix.A, &mix.X, extract_bytes(w, 9));
+#if MIX_BYTE_SIZE == 64
+  assert(word_to_int(mix.A) == BUILD_INT(-, 0, 0, 0, 0, 0));
+  assert(word_to_int(mix.X) == BUILD_INT(-, 0, 0, 0, 3, 32));
+#endif
+
+#undef BUILD_INT
 
   // TEST: division of words
-  mix.A = NEG(0);
-  mix.X = POS(17);
-  w = POS(3);
-  overflow = divword(&mix.A, &mix.X, w);
+  fprintf(stderr, "TESTING: dividing words...\n");
+  mix.A = neg_word(0);
+  mix.X = pos_word(17);
+  w = pos_word(3);
+  overflow = div_word(&mix.A, &mix.X, w);
   assert(!overflow);
-  assert(mix.A == NEG(5));
-  assert(mix.X == NEG(2));
+  assert(word_eq(mix.A, neg_word(5)));
+  assert(word_eq(mix.X, neg_word(2)));
 
-  mix.A = POS(1);
-  mix.X = POS(2);
-  w = POS(0);
-  overflow = divword(&mix.A, &mix.X, w);
+  mix.A = pos_word(1);
+  mix.X = pos_word(2);
+  w = pos_word(0);
+  overflow = div_word(&mix.A, &mix.X, w);
   assert(overflow);
 
-  mix.A = POS(5000);
-  mix.X = POS(0);
-  w = POS(1);
-  overflow = divword(&mix.A, &mix.X, w);
+  mix.A = pos_word(5000);
+  mix.X = pos_word(0);
+  w = pos_word(1);
+  overflow = div_word(&mix.A, &mix.X, w);
   assert(overflow);
 
   // TEST: comparing words
-  w      = WORD(false, 1, 2, 3, 4, 6);
-  word v = WORD( true, 1, 2, 3, 4, 5);
-  assert(compareword(v, w) == 1);
-  assert(compareword(w, v) == -1);
-  assert(compareword(applyfield(v, 13), applyfield(w, 13)) == -1);
-  assert(compareword(applyfield(v, 12), applyfield(w, 12)) == 0);
-  assert(compareword(applyfield(v, 4), applyfield(w, 4)) == 1);
-  assert(compareword(applyfield(v, 0), applyfield(w, 0)) == 0);
+  fprintf(stderr, "TESTING: comparing words...\n");
+  w      = build_word(false, 1, 2, 3, 4, 6);
+  word v = build_word( true, 1, 2, 3, 4, 5);
+  assert(cmp_word(v, w) == 1);
+  assert(cmp_word(w, v) == -1);
+  assert(cmp_word(extract_bytes(v, 1*8+5), extract_bytes(w, 1*8+5)) == -1);
+  assert(cmp_word(extract_bytes(v, 1*8+4), extract_bytes(w, 1*8+4)) == 0);
+  assert(cmp_word(extract_bytes(v, 0*8+4), extract_bytes(w, 0*8+4)) == 1);
+  assert(cmp_word(extract_bytes(v, 0*8+0), extract_bytes(w, 0*8+0)) == 0);
 
   // TEST: word to num
-  mix.A = WORD(false,  0,  0, 31, 32, 39);
-  mix.X = WORD( true, 37, 57, 47, 30, 30);
-  wordtonum(&mix.A, &mix.X);
-  assert(mix.A == NEG(12977700));
-  assert(mix.X = WORD(true, 37, 57, 47, 30, 30));
+  fprintf(stderr, "TESTING: word to num...\n");
+  mix.A = build_word(false,  0,  0, 31, 32, 39);
+  mix.X = build_word( true, 37, 57, 47, 30, 30);
+  word_to_num(&mix.A, &mix.X);
+  assert(word_eq(mix.A, neg_word(12977700)));
+  assert(word_eq(mix.X, build_word(true, 37, 57, 47, 30, 30)));
 
   // TEST: num to char
-  numtochar(&mix.A, &mix.X);
-  assert(mix.A == WORD(false, 30, 30, 31, 32, 39));
-  assert(mix.X == WORD( true, 37, 37, 37, 30, 30));
+  fprintf(stderr, "TESTING: num to char...\n");
+  num_to_char(&mix.A, &mix.X);
+  assert(word_eq(mix.A, build_word(false, 30, 30, 31, 32, 39)));
+  assert(word_eq(mix.X, build_word( true, 37, 37, 37, 30, 30)));
 
+#if MIX_BYTE_SIZE == 64
   // TEST: xor
-  mix.A = WORD(false, 0, 10, 20, 30, 40);
-  w = WORD(true, 63, 32, 16, 8, 4);
+  fprintf(stderr, "TESTING: xor...\n");
+  mix.A = build_word(false, 0, 10, 20, 30, 40);
+  w = build_word(true, 63, 32, 16, 8, 4);
   xor(&mix.A, w);
-  assert(mix.A = WORD(false, 63, 42, 4, 22, 44));
+  assert(word_eq(mix.A, build_word(false, 63, 42, 4, 22, 44)));
+#else
+  fprintf(stderr, "SKIPPED: xor (byte size != 64)\n");
+#endif
 
   // TEST: shifting words
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  shiftleftword(&mix.A, 0);
-  assert(mix.A == WORD(true, 1, 2, 3, 4, 5));
+  fprintf(stderr, "TESTING: shifting words...\n");
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  shift_left_word(&mix.A, 0);
+  assert(word_eq(mix.A, build_word(true, 1, 2, 3, 4, 5)));
 
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  shiftleftword(&mix.A, 2);
-  assert(mix.A == WORD(true, 3, 4, 5, 0, 0));
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  shift_left_word(&mix.A, 2);
+  assert(word_eq(mix.A, build_word(true, 3, 4, 5, 0, 0)));
 
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  shiftleftword(&mix.A, 6);
-  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  shift_left_word(&mix.A, 6);
+  assert(word_eq(mix.A, build_word(true, 0, 0, 0, 0, 0)));
 
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  shiftrightword(&mix.A, 1);
-  assert(mix.A == WORD(true, 0, 1, 2, 3, 4));
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  shift_right_word(&mix.A, 1);
+  assert(word_eq(mix.A, build_word(true, 0, 1, 2, 3, 4)));
 
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  shiftrightword(&mix.A, 3);
-  assert(mix.A == WORD(true, 0, 0, 0, 1, 2));
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  shift_right_word(&mix.A, 3);
+  assert(word_eq(mix.A, build_word(true, 0, 0, 0, 1, 2)));
 
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  shiftrightword(&mix.A, 5);
-  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  shift_right_word(&mix.A, 5);
+  assert(word_eq(mix.A, build_word(true, 0, 0, 0, 0, 0)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftwords(&mix.A, &mix.X, 1);
-  assert(mix.A == WORD(true, 2, 3, 4, 5, 6));
-  assert(mix.X == WORD(false, 7, 8, 9, 10, 0));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_words(&mix.A, &mix.X, 1);
+  assert(word_eq(mix.A, build_word(true, 2, 3, 4, 5, 6)));
+  assert(word_eq(mix.X, build_word(false, 7, 8, 9, 10, 0)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftwords(&mix.A, &mix.X, 5);
-  assert(mix.A == WORD(true, 6, 7, 8, 9, 10));
-  assert(mix.X == WORD(false, 0, 0, 0, 0, 0));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_words(&mix.A, &mix.X, 5);
+  assert(word_eq(mix.A, build_word(true, 6, 7, 8, 9, 10)));
+  assert(word_eq(mix.X, build_word(false, 0, 0, 0, 0, 0)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftwords(&mix.A, &mix.X, 11);
-  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
-  assert(mix.X == WORD(false, 0, 0, 0, 0, 0));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_words(&mix.A, &mix.X, 11);
+  assert(word_eq(mix.A, build_word(true, 0, 0, 0, 0, 0)));
+  assert(word_eq(mix.X, build_word(false, 0, 0, 0, 0, 0)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftrightwords(&mix.A, &mix.X, 2);
-  assert(mix.A == WORD(true, 0, 0, 1, 2, 3));
-  assert(mix.X == WORD(false, 4, 5, 6, 7, 8));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_right_words(&mix.A, &mix.X, 2);
+  assert(word_eq(mix.A, build_word(true, 0, 0, 1, 2, 3)));
+  assert(word_eq(mix.X, build_word(false, 4, 5, 6, 7, 8)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftrightwords(&mix.A, &mix.X, 8);
-  assert(mix.A == WORD(true, 0, 0, 0, 0, 0));
-  assert(mix.X == WORD(false, 0, 0, 0, 1, 2));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_right_words(&mix.A, &mix.X, 8);
+  assert(word_eq(mix.A, build_word(true, 0, 0, 0, 0, 0)));
+  assert(word_eq(mix.X, build_word(false, 0, 0, 0, 1, 2)));
 
-  mix.A = WORD(true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftcirc(&mix.A, &mix.X, 0);
-  assert(mix.A == WORD(true, 1, 2, 3, 4, 5));
-  assert(mix.X == WORD(false, 6, 7, 8, 9, 10));
+  mix.A = build_word(true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_circ(&mix.A, &mix.X, 0);
+  assert(word_eq(mix.A, build_word(true, 1, 2, 3, 4, 5)));
+  assert(word_eq(mix.X, build_word(false, 6, 7, 8, 9, 10)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftcirc(&mix.A, &mix.X, 1);
-  assert(mix.A == WORD(true, 2, 3, 4, 5, 6));
-  assert(mix.X == WORD(false, 7, 8, 9, 10, 1));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_circ(&mix.A, &mix.X, 1);
+  assert(word_eq(mix.A, build_word(true, 2, 3, 4, 5, 6)));
+  assert(word_eq(mix.X, build_word(false, 7, 8, 9, 10, 1)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftcirc(&mix.A, &mix.X, 5);
-  assert(mix.A == WORD(true, 6, 7, 8, 9, 10));
-  assert(mix.X == WORD(false, 1, 2, 3, 4, 5));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_circ(&mix.A, &mix.X, 5);
+  assert(word_eq(mix.A, build_word(true, 6, 7, 8, 9, 10)));
+  assert(word_eq(mix.X, build_word(false, 1, 2, 3, 4, 5)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftleftcirc(&mix.A, &mix.X, 33);
-  assert(mix.A == WORD(true, 4, 5, 6, 7, 8));
-  assert(mix.X == WORD(false, 9, 10, 1, 2, 3));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_left_circ(&mix.A, &mix.X, 33);
+  assert(word_eq(mix.A, build_word(true, 4, 5, 6, 7, 8)));
+  assert(word_eq(mix.X, build_word(false, 9, 10, 1, 2, 3)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftrightcirc(&mix.A, &mix.X, 2);
-  assert(mix.A == WORD(true, 9, 10, 1, 2, 3));
-  assert(mix.X == WORD(false, 4, 5, 6, 7, 8));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_right_circ(&mix.A, &mix.X, 2);
+  assert(word_eq(mix.A, build_word(true, 9, 10, 1, 2, 3)));
+  assert(word_eq(mix.X, build_word(false, 4, 5, 6, 7, 8)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftrightcirc(&mix.A, &mix.X, 6);
-  assert(mix.A == WORD(true, 5, 6, 7, 8, 9));
-  assert(mix.X == WORD(false, 10, 1, 2, 3, 4));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_right_circ(&mix.A, &mix.X, 6);
+  assert(word_eq(mix.A, build_word(true, 5, 6, 7, 8, 9)));
+  assert(word_eq(mix.X, build_word(false, 10, 1, 2, 3, 4)));
 
-  mix.A = WORD( true, 1, 2, 3, 4, 5);
-  mix.X = WORD(false, 6, 7, 8, 9, 10);
-  shiftrightcirc(&mix.A, &mix.X, 34);
-  assert(mix.A == WORD(true, 7, 8, 9, 10, 1));
-  assert(mix.X == WORD(false, 2, 3, 4, 5, 6));
+  mix.A = build_word( true, 1, 2, 3, 4, 5);
+  mix.X = build_word(false, 6, 7, 8, 9, 10);
+  shift_right_circ(&mix.A, &mix.X, 34);
+  assert(word_eq(mix.A, build_word(true, 7, 8, 9, 10, 1)));
+  assert(word_eq(mix.X, build_word(false, 2, 3, 4, 5, 6)));
 
   // TEST: tape IOC
+  fprintf(stderr, "TESTING: tape IOC...\n");
   FILE *fp = fopen("test-files/in.tape", "r+");
-  mix.tapefiles[0] = fp;
+  mix.tape_files[0] = fp;
 
   assert(ftell(fp) == 0L);
   // Wind forward
-  controltape(&mix, POS(3), 0);
-  assert(!mix.err);
+  assert(tape_ioc(&mix, 3, 0));
   assert(ftell(fp) == 3*601L);
 
   // Wind backward
-  controltape(&mix, NEG(1), 0);
-  assert(!mix.err);
+  assert(tape_ioc(&mix, -1, 0));
   assert(ftell(fp) == 2*601L);
 
   // Wind backward past beginning
-  controltape(&mix, NEG(3), 0);
-  assert(!mix.err);
+  assert(tape_ioc(&mix, -3, 0));
   assert(ftell(fp) == 0L);
 
   // Wind forward past end
-  controltape(&mix, POS(1001), 0);
-  assert(mix.err);
+  assert(!tape_ioc(&mix, 1001, 0));
 
   // TEST: tape IN
   mix.err = NULL;
   rewind(fp);
-  readtape(&mix, 0, 0);
-  assert(!mix.err);
-  assert(mix.mem[0] == POS(mixord('A')));
-  assert(mix.mem[99] == POS(mixord('Z')));
+  assert(tape_read(&mix, 0, 0));
+  assert(word_eq(mix.mem[0], pos_word(mix_ord('A'))));
+  assert(word_eq(mix.mem[99], pos_word(mix_ord('Z'))));
 
   // TEST: tape OUT
   fclose(fp);
   fp = fopen("test-files/out.tape", "r+");
-  mix.tapefiles[1] = fp;
+  mix.tape_files[1] = fp;
 
   // Write to very last block of tape
-  controltape(&mix, POS(999), 1);
-  assert(!mix.err);
-  writetape(&mix, 0, 1);
-  assert(!mix.err);
+  assert(tape_ioc(&mix, 999, 1));
+  assert(tape_write(&mix, 0, 1));
   assert(ftell(fp) == 1000*601L);
 
+  fprintf(stderr, "All emulator tests passed!\n\n");
   fclose(fp);
 }
 
-void testassembler() {
-  parsestate ps;
-  mix mix;
-  initparsestate(&ps);
-  initmix(&mix);
+void test_assembler() {
+  ParseState ps;
+  Mix mix;
+  parse_state_init(&ps);
+  mix_init(&mix);
 
-  // TEST: parsesym
+  // TEST: parse_sym
+  fprintf(stderr, "TESTING: parse_sym...\n");
   char sym[11];
   char *line = "SYMBOL \n", *cur = line;
-  assert(parsesym(&cur, sym));
+  assert(parse_sym(&cur, sym));
   assert(cur-line == 6);
   assert(strcmp(sym, "SYMBOL") == 0);
 
   line = "123456\n"; cur = line;
-  assert(!parsesym(&cur, sym));
+  assert(!parse_sym(&cur, sym));
   assert(cur == line);
 
   line = "VERYLONGSYMBOL\n";
-  assert(!parsesym(&line, sym));
+  assert(!parse_sym(&line, sym));
 
-  // TEST: parseoperator
-  int opidx;
+  // TEST: parse_operator
+  fprintf(stderr, "TESTING: parse_operator...\n");
+  int op_idx;
   byte C, F;
   line = "HLT\t";
-  assert(parseoperator(&line, &C, &F));
+  assert(parse_operator(&line, &C, &F));
   assert(C==5 && F==2);
 
   line = "XXX\t";
-  assert(!parseoperator(&line, &C, &F));
+  assert(!parse_operator(&line, &C, &F));
 
   line = "TOOLONG\t";
-  assert(!parseoperator(&line, &C, &F));
+  assert(!parse_operator(&line, &C, &F));
 
-  // TEST: parsenum
+  // TEST: parse_num
+  fprintf(stderr, "TESTING: parse_num...\n");
   int num;
   line = "00052\n";
-  assert(parsenum(&line, &num));
+  assert(parse_num(&line, &num));
   assert(num == 52);
 
   line = "1234123412341234\n";
-  assert(!parsenum(&line, &num));
+  assert(!parse_num(&line, &num));
 
   line = "20BY20\n";
-  assert(!parsenum(&line, &num));
+  assert(!parse_num(&line, &num));
 
   word w; byte b;
-  // TEST: parseatomic
+  // TEST: parse_atomic
+  fprintf(stderr, "TESTING: parse_atomic...\n");
   line = "UNDEFINED\n";
-  assert(!parseatomic(&line, &w, &ps));
+  assert(!parse_atomic(&line, &w, &ps));
 
-  ps.numsyms = 1;
+  ps.num_syms = 1;
   strcpy(ps.syms[0], "20BY20");
-  ps.symvals[0] = POS(1234);
+  ps.sym_vals[0] = pos_word(1234);
   line = "20BY20\n";
-  assert(parseatomic(&line, &w, &ps));
-  assert(w == POS(1234));
+  assert(parse_atomic(&line, &w, &ps));
+  assert(word_eq(w, pos_word(1234)));
 
-  // TEST: parseexpr
+  // TEST: parse_expr
+  fprintf(stderr, "TESTING: parse_expr...\n");
   line = "5\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(5));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(5)));
 
   line = "+5\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(5));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(5)));
 
   line = "-5\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == NEG(5));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, neg_word(5)));
 
   line = "-1+5\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(4));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(4)));
 
   line = "-1+5*20/6\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(13));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(13)));
 
   line = "1//3\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(357913941));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(MIX_MAX / 3)));
 
   line = "1:3\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(11));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(11)));
 
   line = "*+3\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(ps.star+3));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(ps.star+3)));
 
   ps.star = 1;
   line = "***\n";
-  assert(parseexpr(&line, &w, &ps));
-  assert(w == POS(ps.star*ps.star));
+  assert(parse_expr(&line, &w, &ps));
+  assert(word_eq(w, pos_word(ps.star*ps.star)));
 
-  // TEST: parseA
+  // TEST: parse_A
+  fprintf(stderr, "TESTING: parse_A...\n");
   line = "5678\n";
-  assert(parseA(&line, &w, &ps));
-  assert(w == POS(5678));
+  assert(parse_A(&line, &w, &ps));
+  assert(word_eq(w, pos_word(5678)));
 
   ps.star = 3000;
   line = "* \n";
-  assert(parseA(&line, &w, &ps));
-  assert(w == POS(3000));
+  assert(parse_A(&line, &w, &ps));
+  assert(word_eq(w, pos_word(3000)));
 
   line = "###\n";
-  assert(!parseA(&line, &w, &ps));
+  assert(!parse_A(&line, &w, &ps));
 
-  // TEST: parseI
+  // TEST: parse_I
+  fprintf(stderr, "TESTING: parse_I...\n");
   line = ",6\n";
-  assert(parseI(&line, &b, &ps));
+  assert(parse_I(&line, &b, &ps));
   assert(b == 6);
 
   line = ",###\n";
-  assert(!parseI(&line, &b, &ps));
+  assert(!parse_I(&line, &b, &ps));
 
   line = "###\n";
-  assert(parseI(&line, &b, &ps));
+  assert(parse_I(&line, &b, &ps));
   assert(b == 0);
 
-  // TEST: parseF
+  // TEST: parse_F
+  fprintf(stderr, "TESTING: parse_F...\n");
   line = "(12)\n";
-  assert(parseF(&line, &b, &ps));
+  assert(parse_F(&line, &b, &ps));
   assert(b == 12);
 
   line = "(12\n";
-  assert(!parseF(&line, &b, &ps));
+  assert(!parse_F(&line, &b, &ps));
 
   line = "(1:5)\n";
-  assert(parseF(&line, &b, &ps));
+  assert(parse_F(&line, &b, &ps));
   assert(b == 13);
 
-  // TEST: parseW
+  // TEST: parse_W
+  fprintf(stderr, "TESTING: parse_W...\n");
   line = "1\n";
-  assert(parseW(&line, &w, &ps));
-  assert(w == POS(1));
+  assert(parse_W(&line, &w, &ps));
+  assert(word_eq(w, pos_word(1)));
 
   line = "1,-1000(0:2)\n";
-  assert(parseW(&line, &w, &ps));
-  assert(w == INSTR(ADDR(-1000), 0, 0, 1));
+  assert(parse_W(&line, &w, &ps));
+  assert(word_eq(w, build_instr((signmag) {false, 1000}, 0, 0, 1)));
 
   line = "-1000(0:2),1\n";
-  assert(parseW(&line, &w, &ps));
-  assert(w == POS(1));
+  assert(parse_W(&line, &w, &ps));
+  assert(word_eq(w, pos_word(1)));
 
-  extraparseinfo extraparseinfo;
-  // TEST: parseline
-  initparsestate(&ps);
+  // TEST: parse_line
+  fprintf(stderr, "TESTING: parse_line...\n");
+  ExtraParseInfo extraparseinfo;
+  parse_state_init(&ps);
   line = "START\tNOP\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.numsyms == 1);
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.num_syms == 1);
   assert(!strcmp(ps.syms[0], "START"));
-  assert(ps.symvals[0] == POS(ps.star-1));
+  assert(word_eq(ps.sym_vals[0], pos_word(ps.star-1)));
 
   line = "TEN\tEQU\t10\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.numsyms == 2);
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.num_syms == 2);
   assert(!strcmp(ps.syms[1], "TEN"));
-  assert(ps.symvals[1] == POS(10));
+  assert(word_eq(ps.sym_vals[1], pos_word(10)));
 
   line = "\tCON\t1337\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.numsyms == 2);
-  assert(mix.mem[ps.star-1] == POS(1337));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.num_syms == 2);
+  assert(word_eq(mix.mem[ps.star-1], pos_word(1337)));
 
   line = "\tALF\tA2J5S\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(mix.mem[ps.star-1] == WORD(true,1,32,11,35,22));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(word_eq(mix.mem[ps.star-1], build_word(true, 1, 32, 11, 35, 22)));
 
   line = "\tORIG\t2000\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
   assert(ps.star == 2000);
 
   line = "\tORIG\t9999\n";
-  assert(!parseline(line, &ps, &mix, &extraparseinfo));
+  assert(!parse_line(line, &ps, &mix, &extraparseinfo));
 
   line = "==INVALID LINE==";
-  assert(!parseline(line, &ps, &mix, &extraparseinfo));
+  assert(!parse_line(line, &ps, &mix, &extraparseinfo));
 
   line = "* COMMENT";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
 
   ps.star = 3000;
   line = "\tSTA\t2000(1:5)\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(mix.mem[3000] == INSTR(ADDR(2000), 0, 13, 24));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(word_eq(mix.mem[3000], build_instr((signmag) {true, 2000}, 0, 13, 24)));
 
   // TEST: future references
-  initparsestate(&ps);
+  fprintf(stderr, "TESTING: future references...\n");
+  parse_state_init(&ps);
   line = "\tJMP\tFUTURE\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.numfuturerefs == 1);
-  assert(!ps.futurerefs[0].resolved);
-  assert(ps.futurerefs[0].addr == 0);
-  assert(!ps.futurerefs[0].which);
-  assert(!strcmp(ps.futurerefs[0].sym, "FUTURE"));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.num_future_refs == 1);
+  assert(!ps.future_refs[0].is_resolved);
+  assert(ps.future_refs[0].addr == 0);
+  assert(!ps.future_refs[0].is_literal);
+  assert(!strcmp(ps.future_refs[0].sym, "FUTURE"));
   line = "FUTURE\tNOP\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
   line = "\tJMP\tUNDEFINED\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.numfuturerefs == 2);
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.num_future_refs == 2);
   line = "\tJMP\t=2000=\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.numfuturerefs == 3);
-  assert(ps.futurerefs[2].which);
-  assert(ps.futurerefs[2].literal == POS(2000));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.num_future_refs == 3);
+  assert(ps.future_refs[2].is_literal);
+  assert(word_eq(ps.future_refs[2].literal, pos_word(2000)));
   line = "FOO\tEND\t1000\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.futurerefs[0].resolved);
-  assert(ps.futurerefs[1].resolved);
-  assert(getA(mix.mem[0]) == (1|(1<<12)));
-  assert(getA(mix.mem[2]) == (4|(1<<12)));
-  assert(getA(mix.mem[3]) == (5|(1<<12)));
-  assert(mix.mem[4] == POS(0));
-  assert(mix.mem[5] == POS(2000));
-  assert(lookupsym("FOO", &w, &ps));
-  assert(w == POS(6));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.future_refs[0].is_resolved);
+  assert(ps.future_refs[1].is_resolved);
+  assert(signmag_eq(get_A(mix.mem[0]), (signmag) {true, 1}));
+  assert(signmag_eq(get_A(mix.mem[2]), (signmag) {true, 4}));
+  assert(signmag_eq(get_A(mix.mem[3]), (signmag) {true, 5}));
+  assert(word_eq(mix.mem[4], pos_word(0)));
+  assert(word_eq(mix.mem[5], pos_word(2000)));
+  assert(lookup_sym("FOO", &w, &ps));
+  assert(word_eq(w, pos_word(6)));
   assert(mix.PC == 1000);
 
   // TEST: local symbols
-  initparsestate(&ps);
+  fprintf(stderr, "TESTING: local symbols...\n");
+  parse_state_init(&ps);
   line = "1H\tNOP\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.localsymcounts[1] == 1);
-  assert(lookupsym("1H#00", &w, &ps));
-  assert(w == POS(0));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.local_sym_counts[1] == 1);
+  assert(lookup_sym("1H#00", &w, &ps));
+  assert(word_eq(w, pos_word(0)));
   line = "\tJMP\t1F\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
   line = "\tJMP\t1B\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
   line = "2H\tNOP\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.localsymcounts[2] == 1);
-  assert(lookupsym("2H#00", &w, &ps));
-  assert(w == POS(3));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.local_sym_counts[2] == 1);
+  assert(lookup_sym("2H#00", &w, &ps));
+  assert(word_eq(w, pos_word(3)));
   line = "1H\tNOP\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(ps.localsymcounts[1] == 2);
-  assert(lookupsym("1H#01", &w, &ps));
-  assert(w == POS(4));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(ps.local_sym_counts[1] == 2);
+  assert(lookup_sym("1H#01", &w, &ps));
+  assert(word_eq(w, pos_word(4)));
   line = "\tEND\t1000\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(getA(mix.mem[1]) == (4|(1<<12)));
-  assert(getA(mix.mem[2]) == (0|(1<<12)));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(signmag_eq(get_A(mix.mem[1]), (signmag) {true, 4}));
+  assert(signmag_eq(get_A(mix.mem[2]), (signmag) {true, 0}));
 
-  // TEST: multiple of the same undefined symbol
-  initparsestate(&ps);
+  // TEST: multiple instances of the same undefined symbol
+  fprintf(stderr, "TESTING: multiple instances of undefined symbol...\n");
+  parse_state_init(&ps);
   line = "\tJMP\tUNDEFINED\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
   line = "\tJMP\tUNDEFINED\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
   line = "\tEND\t1000\n";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(getA(mix.mem[0]) == (2|(1<<12)));
-  assert(getA(mix.mem[1]) == (2|(1<<12)));
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(signmag_eq(get_A(mix.mem[0]), (signmag) {true, 2}));
+  assert(signmag_eq(get_A(mix.mem[1]), (signmag) {true, 2}));
 
-  // TEST: no A/I/F field, but with comment
-  initparsestate(&ps);
+  // TEST: comment, but no A/I/F field
+  fprintf(stderr, "TESTING: comment, but no A/I/F field...\n");
+  parse_state_init(&ps);
   line = "\tHLT\t\thalts the program";
-  assert(parseline(line, &ps, &mix, &extraparseinfo));
-  assert(INTA(getA(mix.mem[0])) == 0);
-  assert(getI(mix.mem[0]) == 0);
-  assert(getF(mix.mem[0]) == 2);
-  assert(getC(mix.mem[0]) == 5);
+  assert(parse_line(line, &ps, &mix, &extraparseinfo));
+  assert(signmag_eq(get_A(mix.mem[0]), (signmag) {true, 0}));
+  assert(get_I(mix.mem[0]) == 0);
+  assert(get_F(mix.mem[0]) == 2);
+  assert(get_C(mix.mem[0]) == 5);
+
+  fprintf(stderr, "All assembler tests passed!\n\n");
+}
+
+static bool load_mixal_file(char *filename, Mix *mix) {
+  ParseState ps;
+  FILE *fp;
+  int line_num = 0;
+  char line[MMM_LINE_LEN];
+  ExtraParseInfo extra;
+
+  mix_init(mix);
+  parse_state_init(&ps);
+
+  if ((fp = fopen(filename, "r")) == NULL) return false;
+
+  while (++line_num && fgets(line, MMM_LINE_LEN, fp) != NULL) {
+    if (!parse_line(line, &ps, mix, &extra)) return false;
+    if (extra.is_end) break;
+  }
+  return true;
+}
+
+static bool run_mix(Mix *mix) {
+  while (!mix->done) mix_step(mix);
+  return mix->err == NULL;
+}
+
+void test_integration() {
+  Mix mix;
+  // TEST: max
+  fprintf(stderr, "TESTING: max...\n");
+  assert(load_mixal_file("../taocp/1.3.2-max.mixal", &mix));
+  assert(run_mix(&mix) || (puts(mix.err), false));
+  assert(word_eq(mix.A, pos_word(9)));
+  assert(word_eq(mix.I[1], pos_word(5)));
+
+  // TEST: primes
+  fprintf(stderr, "TESTING: primes...\n");
+  assert(load_mixal_file("../taocp/1.3.2-primes.mixal", &mix));
+  assert(run_mix(&mix) || (puts(mix.err), false));
+
+  // TEST: instr
+  fprintf(stderr, "TESTING: instr...\n");
+  assert(load_mixal_file("../taocp/1.3.2-instr.mixal", &mix));
+  assert(run_mix(&mix) || (puts(mix.err), false));                    // A = 2000, I = 0, F = 10, C = 63
+  assert(word_eq(mix.A, pos_word(1337)));
+
+  assert(load_mixal_file("../taocp/1.3.2-instr.mixal", &mix));
+  // Inject different inputs directly into memory
+  mix.mem[3000] = build_instr((signmag) { false, 2000 }, 0, 0, INCA); // A = -2000
+  assert(run_mix(&mix) || (puts(mix.err), false));
+  assert(word_eq(mix.A, pos_word(666)));
+
+  assert(load_mixal_file("../taocp/1.3.2-instr.mixal", &mix));
+  mix.mem[3000] = build_instr((signmag) { true, 2000 }, 0, 0, INCA);  // A = +2000
+  mix.mem[3004] = build_instr((signmag) { true, 24 }, 0, 0, INCA);    // F = (3:0)
+  assert(run_mix(&mix) || (puts(mix.err), false));
+  assert(word_eq(mix.A, pos_word(666)));
+
+  // TEST: saddle
+  fprintf(stderr, "TESTING: saddle...\n");
+  assert(load_mixal_file("../taocp/1.3.2-saddle.mixal", &mix));
+  assert(run_mix(&mix) || (puts(mix.err), false));
+  assert(word_eq(mix.I[0], pos_word(42)));
+
+  // TODO: port more programs over
+
+  fprintf(stderr, "All integration tests passed!\n");
 }
 
 int main() {
-  testemulator();
-  testassembler();
+  test_emulator();
+  test_assembler();
+  test_integration();
 }

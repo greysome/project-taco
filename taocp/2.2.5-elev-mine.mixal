@@ -305,7 +305,7 @@ DECISION	STJ	7F
 	JANZ	3F			CALL variables at floor 2 not all zero?
 	ENT3	E3
 	JMP	6F			Send elevator to E3.
-3H 	ENT1	-4			D3. Compute the smallest floor with a call, in rI1+4.
+3H	ENT1	-4			D3. Compute the smallest floor with a call, in rI1+4.
 0H	ENT2	4,1
 	DEC2	0,5
 	J2Z	*+3			Make sure rI1 != FLOOR.

@@ -1,0 +1,27 @@
+MAXIMUM	STJ	EXIT
+INIT	ENT3	0,1
+	JMP	CHANGEM
+LOOP	CMPA	X,3
+	JGE	*+3
+CHANGEM	ENT2	0,3
+	LDA	X,3
+	DEC3	1
+	J3P	LOOP
+EXIT	JMP	*
+* Example input. At the end we should see rA=9 and rI2=5.
+X	CON	3
+	CON	-1
+	CON	4
+	CON	-1
+	CON	5
+	CON	9
+	CON	2
+	CON	-6
+	CON	5
+	CON	-3
+	CON	5
+	CON	-9
+MAIN	ENT1	11	Array size
+	JMP	MAXIMUM
+	HLT
+	END	MAIN

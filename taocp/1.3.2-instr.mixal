@@ -1,19 +1,19 @@
 * 1.3.2-9: write a MIX program to determine if a MIX instruction (stored as a word) is valid
-* Each table entry consists of up to two checks to perform: on the F and A-fields.
-* Main program
-PRINTER	EQU	18
-INSTR	EQU	1000
+* If valid, rA=1337 on halt. Otherwise, rA=666.
+INSTR	CON	0
+CVAL	CON	0
+SPECTO	CON	0
 	ORIG	3000
-PREP	ENTA	2000		Load a test case
+MAIN	ENTA	2000		Prepare example input, A-field
 	STA	INSTR(0:2)
-	ENTA	0
+	ENTA	0		I-field
 	STA	INSTR(3:3)
-	ENTA	28
+	ENTA	10		F-field
 	STA	INSTR(4:4)
-	ENTA	63
+	ENTA	63		C-field
 	STA	INSTR(5:5)
-START	IOC	0(PRINTER)
-	LD4	INSTR(3:3)	I4 = I field
+* Start the check
+START	LD4	INSTR(3:3)	I4 = I field
 	LD5	INSTR(4:4)  	I5 = F field
 	LDA	INSTR(5:5)	A  = C field
 CHECKI	DEC4	6		Check that 0<=I<=6
@@ -21,7 +21,7 @@ CHECKI	DEC4	6		Check that 0<=I<=6
 CHECKC	DECA	63		Check that 0<=C<=63
 	JAP	BAD
 * Index into the table
-  	INCA	63
+	INCA	63
 	STA	CVAL
 	ADD	CVAL
 	STA	CVAL
@@ -31,7 +31,7 @@ CHECKC	DECA	63		Check that 0<=C<=63
 FSPEC	STJ	0F	  	Let F=(A:B)
 	ENTA	0
 	LDX	INSTR(4:4)
-	DIV	=8=		
+	DIV	=8=
 	STX	SPECTO   	Check A<=B
 	CMPA	SPECTO
 	JG	BAD
@@ -68,25 +68,12 @@ CHECKA	LD4	INSTR(3:3)
 	DEC3	3999
 	J3P	BAD
 	JMP	GOOD
-GOOD	OUT	GOODMSG(PRINTER)
+GOOD	ENTA	1337
 	HLT
-BAD	OUT	BADMSG(PRINTER)
+BAD	ENTA	666
 	HLT
-*
-DATA	EQU	0
-	ORIG	DATA
-GOODMSG	ALF	VALID
-	ALF	 INST
-	ALF	RUCTI
-	ALF	ON :D
-	ORIG	GOODMSG+24
-BADMSG	ALF	INVAL
-	ALF	ID IN
-	ALF	STRUC
-	ALF	TION 
-	ALF	:(   
-	ORIG	BADMSG+24
-TABLE	NOP	0		NOP
+* Each table entry consists of up to two checks to perform: on the F and A-fields.
+TABLE	NOP	0	NOP
 	JMP	GOOD
 	JMP	FSPEC	ADD
 	JMP	CHECKA
@@ -100,7 +87,7 @@ TABLE	NOP	0		NOP
 	JMP	GOOD
 	JMP	F0TO5	SLA/SRA/SLAX/SRAX/SLC/SRC
 	JMP	GOOD
-	NOP	0		MOVE
+	NOP	0	MOVE
 	JMP	CHECKA
 	JMP	FSPEC	LDA
 	JMP	CHECKA
@@ -214,4 +201,4 @@ TABLE	NOP	0		NOP
 	JMP	CHECKA
 	JMP	FSPEC	CMPX
 	JMP	CHECKA
-	END	PREP
+	END	MAIN

@@ -1,2 +1,5 @@
 mmm
 test
+build/
+misc/
+emulator-old.h

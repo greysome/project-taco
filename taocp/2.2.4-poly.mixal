@@ -1,7 +1,7 @@
 * 2.2.4: subroutines for manipulations of polynomials
 LINK	EQU	4:5
 ABC	EQU	0:3
-OVERFLOW	HLT		Hey there
+OVERFLOW	HLT
 * ADD
 * Input:  rI1=P, rI2=Q
 * Output: poly(Q)<-poly(Q)+poly(P); rI1,rI2 unchanged;

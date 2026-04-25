@@ -1,13 +1,3 @@
-Some notable programs:
-
-printprimes.mixal    the first complete MIX program in TAOCP :D
-perms                two algorithms for multiplying permutations (directly taken from the book)
-mixsim               MIX meta-simulator
-trace                MIX tracer
-neg100blocks         negate 100 blocks from input tape, and output to another tape;
-                     a nontrivial demonstration of 3 coroutines
-
-
 To mixsim, I've added the ability to load MIX programs from punched cards. For example, here's how to run my MIX solution to Day 1 of Advent of Code 2024 using mmmmmix (from this directory):
 
 > mmm mixsim/mixsim.mixal ../../aoc24/1-program.cards
