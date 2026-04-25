@@ -4,6 +4,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include "emulator.h"
+#include "mylib/str.h"
+#include "mylib/arena.h"
 
 // Stores information about a future reference or a literal constant
 // to be filled in later.
@@ -11,7 +13,7 @@ typedef struct {
   int addr;
   bool is_resolved;
   bool is_literal;
-  char sym[11];
+  Str sym;
   word literal;
 } FutureRef;
 
@@ -20,10 +22,11 @@ typedef struct {
   int star;
   int num_syms;
   int num_future_refs;
-  char syms[ASSEMBLER_MAXSYMS][11];
+  Str syms[ASSEMBLER_MAXSYMS];
   word sym_vals[ASSEMBLER_MAXSYMS];
   FutureRef future_refs[ASSEMBLER_MAXSYMS];
   int local_sym_counts[10];  // The current number of instances of each local symbol <n>H.
+  Arena *arena;
 } ParseState;
 
 // Returned by reference in parse_line() for mmm to use.
@@ -33,7 +36,7 @@ typedef struct {
   bool is_end;
 } ExtraParseInfo;
 
-void parse_state_init(ParseState *ps);
+void parse_state_init(ParseState *ps, Arena *arena);
 
 bool lookup_sym(char *sym, word *val, ParseState *ps);
 bool parse_sym(char **s, char *sym);
@@ -123,7 +126,8 @@ static byte opcodes[] = {
   56, 57, 58, 59, 60, 61, 62, 63,
 };
 
-void parse_state_init(ParseState *ps) {
+void parse_state_init(ParseState *ps, Arena *arena) {
+  ps->arena = arena;
   ps->star = 0;
   ps->num_syms = 0;
   ps->num_future_refs = 0;
@@ -133,7 +137,7 @@ void parse_state_init(ParseState *ps) {
 
 bool lookup_sym(char *sym, word *val, ParseState *ps) {
   for (int i = 0; i < ps->num_syms; i++) {
-    if (!strcmp(sym, ps->syms[i])) {
+    if (!strcmp(ps->syms[i].s, sym)) {
       *val = ps->sym_vals[i];
       return true;
     }
@@ -142,7 +146,9 @@ bool lookup_sym(char *sym, word *val, ParseState *ps) {
 }
 
 static void add_sym(char *sym, word val, ParseState *ps) {
-  strcpy(ps->syms[ps->num_syms], sym);
+  Str s = str_new(ps->arena);
+  str_append_cstr(&s, sym, ps->arena);
+  ps->syms[ps->num_syms] = s;
   ps->sym_vals[ps->num_syms] = val;
   ps->num_syms++;
 }
@@ -333,7 +339,8 @@ bool parse_A(char **s, word *A, ParseState *ps) {
     fr.is_resolved = false;
     fr.addr = ps->star;
     fr.is_literal = false;
-    strcpy(fr.sym, sym);
+    fr.sym = str_new(ps->arena);
+    str_append_cstr(&fr.sym, sym, ps->arena);
     ps->future_refs[ps->num_future_refs++] = fr;
     *A = pos_word(0);  // The A-field will be filled in later.
     return true;
@@ -521,7 +528,7 @@ bool parse_line(char *line, ParseState *ps, Mix *mix, ExtraParseInfo *extra) {
     for (int i = 0; i < ps->num_future_refs; i++) {
       FutureRef *fr = &ps->future_refs[i];
       word val;
-      if (!fr->is_literal && lookup_sym(fr->sym, &val, ps)) {
+      if (!fr->is_literal && lookup_sym(fr->sym.s, &val, ps)) {
         fr->is_resolved = true;
         word instr = mix->mem[fr->addr];
         mix->mem[fr->addr] = build_instr(word_to_signmag(val), get_I(instr), get_F(instr), get_C(instr));
@@ -538,10 +545,10 @@ bool parse_line(char *line, ParseState *ps, Mix *mix, ExtraParseInfo *extra) {
         // (happens with the non-first instances of an undefined symbol).
         if (!fr->is_literal) {
           word tmp;
-          if (lookup_sym(fr->sym, &tmp, ps))
+          if (lookup_sym(fr->sym.s, &tmp, ps))
             addr = word_to_int(tmp);
           else
-            add_sym(fr->sym, pos_word(ps->star), ps);
+            add_sym(fr->sym.s, pos_word(ps->star), ps);
         }
         word instr = mix->mem[fr->addr];
         mix->mem[fr->addr] = build_instr((signmag) {true, addr}, get_I(instr), get_F(instr), get_C(instr));

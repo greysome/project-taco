@@ -4,21 +4,25 @@
 #include <termios.h>
 #include "assembler.h"
 #include "emulator.h"
+#include "mylib/str.h"
+#include "mylib/arena.h"
 
 #define MMM_LINE_LEN 128
 #define MMM_DASHBOARD_BUFSIZE (1<<20)
+#define MMM_ARENA_SIZE (1<<22)
 
 typedef struct {
   Mix mix;
   ParseState ps;
-  char prev_line[MMM_LINE_LEN];
+  Arena arena;
+  Str prev_line;
 
-  char mixal_file[MMM_LINE_LEN];
-  char card_reader_file[MMM_LINE_LEN];
-  char card_punch_file[MMM_LINE_LEN];
-  char tape_files[8][MMM_LINE_LEN];
+  Str mixal_file;
+  Str card_reader_file;
+  Str card_punch_file;
+  Str tape_files[8];
 
-  char source_lines[4000][MMM_LINE_LEN];
+  Str source_lines[4000];
   ExtraParseInfo extra_parse_infos[4000];
 
   bool should_trace;
