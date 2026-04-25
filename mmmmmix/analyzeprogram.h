@@ -178,7 +178,7 @@ void analyzeprogram(MMM *mmm, int startaddr, int endaddr) {
       C = JMP; F = 0; A = Start;
     }
     else {
-      if (isdata(mmm->source_lines[i])) continue;
+      if (isdata(mmm->source_lines[i].s)) continue;
       C = get_C(mmm->mix.mem[i]);
       F = get_F(mmm->mix.mem[i]);
       A = signmag_to_int(get_A(mmm->mix.mem[i]));
@@ -257,7 +257,7 @@ nextedge:
   for (int i = 0; i < curid; i++) {
     edge *ee = E+i;
     if (!ee->iscycle || ee->s == End || ee->weight == 0) continue;
-    printf("E%d: %s\t%s\n", i, ee->branch ? "# TIMES TAKEN" : "# TIMES UNTAKEN", mmm->source_lines[ee->s]);
+    printf("E%d: %s\t%s\n", i, ee->branch ? "# TIMES TAKEN" : "# TIMES UNTAKEN", mmm->source_lines[ee->s].s);
   }
   printf("Total time = ");
   for (int i = 0; i < curid; i++) {

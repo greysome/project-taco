@@ -18,7 +18,7 @@ endif
 mmm: mmm.c $(MYLIB_OBJS) $(OBJS)
 	$(CC) $(CFLAGS) $^ -o $@
 
-test: test.c build/emulator.o build/assembler.o build/util.o
+test: test.c build/emulator.o build/assembler.o $(MYLIB_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@
 	./test
 
