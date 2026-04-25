@@ -1,0 +1,449 @@
+diff --git a/mmmmmix/Makefile b/mmmmmix/Makefile
+index 92e17ba..6806f91 100644
+--- a/mmmmmix/Makefile
++++ b/mmmmmix/Makefile
+@@ -18,7 +18,7 @@ endif
+ mmm: mmm.c $(MYLIB_OBJS) $(OBJS)
+ 	$(CC) $(CFLAGS) $^ -o $@
+ 
+-test: test.c build/emulator.o build/assembler.o build/util.o
++test: test.c build/emulator.o build/assembler.o $(MYLIB_OBJS)
+ 	$(CC) $(CFLAGS) $^ -o $@
+ 	./test
+ 
+diff --git a/mmmmmix/analyzeprogram.h b/mmmmmix/analyzeprogram.h
+index 452e1f1..ce67d2d 100644
+--- a/mmmmmix/analyzeprogram.h
++++ b/mmmmmix/analyzeprogram.h
+@@ -178,7 +178,7 @@ void analyzeprogram(MMM *mmm, int startaddr, int endaddr) {
+       C = JMP; F = 0; A = Start;
+     }
+     else {
+-      if (isdata(mmm->source_lines[i])) continue;
++      if (isdata(mmm->source_lines[i].s)) continue;
+       C = get_C(mmm->mix.mem[i]);
+       F = get_F(mmm->mix.mem[i]);
+       A = signmag_to_int(get_A(mmm->mix.mem[i]));
+@@ -257,7 +257,7 @@ nextedge:
+   for (int i = 0; i < curid; i++) {
+     edge *ee = E+i;
+     if (!ee->iscycle || ee->s == End || ee->weight == 0) continue;
+-    printf("E%d: %s\t%s\n", i, ee->branch ? "# TIMES TAKEN" : "# TIMES UNTAKEN", mmm->source_lines[ee->s]);
++    printf("E%d: %s\t%s\n", i, ee->branch ? "# TIMES TAKEN" : "# TIMES UNTAKEN", mmm->source_lines[ee->s].s);
+   }
+   printf("Total time = ");
+   for (int i = 0; i < curid; i++) {
+diff --git a/mmmmmix/assembler.h b/mmmmmix/assembler.h
+index 2346656..cb34c9a 100644
+--- a/mmmmmix/assembler.h
++++ b/mmmmmix/assembler.h
+@@ -4,6 +4,8 @@
+ #include <ctype.h>
+ #include <stdlib.h>
+ #include "emulator.h"
++#include "mylib/str.h"
++#include "mylib/arena.h"
+ 
+ // Stores information about a future reference or a literal constant
+ // to be filled in later.
+@@ -11,7 +13,7 @@ typedef struct {
+   int addr;
+   bool is_resolved;
+   bool is_literal;
+-  char sym[11];
++  Str sym;
+   word literal;
+ } FutureRef;
+ 
+@@ -20,10 +22,11 @@ typedef struct {
+   int star;
+   int num_syms;
+   int num_future_refs;
+-  char syms[ASSEMBLER_MAXSYMS][11];
++  Str syms[ASSEMBLER_MAXSYMS];
+   word sym_vals[ASSEMBLER_MAXSYMS];
+   FutureRef future_refs[ASSEMBLER_MAXSYMS];
+   int local_sym_counts[10];  // The current number of instances of each local symbol <n>H.
++  Arena *arena;
+ } ParseState;
+ 
+ // Returned by reference in parse_line() for mmm to use.
+@@ -33,7 +36,7 @@ typedef struct {
+   bool is_end;
+ } ExtraParseInfo;
+ 
+-void parse_state_init(ParseState *ps);
++void parse_state_init(ParseState *ps, Arena *arena);
+ 
+ bool lookup_sym(char *sym, word *val, ParseState *ps);
+ bool parse_sym(char **s, char *sym);
+@@ -123,7 +126,8 @@ static byte opcodes[] = {
+   56, 57, 58, 59, 60, 61, 62, 63,
+ };
+ 
+-void parse_state_init(ParseState *ps) {
++void parse_state_init(ParseState *ps, Arena *arena) {
++  ps->arena = arena;
+   ps->star = 0;
+   ps->num_syms = 0;
+   ps->num_future_refs = 0;
+@@ -133,7 +137,7 @@ void parse_state_init(ParseState *ps) {
+ 
+ bool lookup_sym(char *sym, word *val, ParseState *ps) {
+   for (int i = 0; i < ps->num_syms; i++) {
+-    if (!strcmp(sym, ps->syms[i])) {
++    if (!strcmp(ps->syms[i].s, sym)) {
+       *val = ps->sym_vals[i];
+       return true;
+     }
+@@ -142,7 +146,9 @@ bool lookup_sym(char *sym, word *val, ParseState *ps) {
+ }
+ 
+ static void add_sym(char *sym, word val, ParseState *ps) {
+-  strcpy(ps->syms[ps->num_syms], sym);
++  Str s = str_new(ps->arena);
++  str_append_cstr(&s, sym, ps->arena);
++  ps->syms[ps->num_syms] = s;
+   ps->sym_vals[ps->num_syms] = val;
+   ps->num_syms++;
+ }
+@@ -333,7 +339,8 @@ bool parse_A(char **s, word *A, ParseState *ps) {
+     fr.is_resolved = false;
+     fr.addr = ps->star;
+     fr.is_literal = false;
+-    strcpy(fr.sym, sym);
++    fr.sym = str_new(ps->arena);
++    str_append_cstr(&fr.sym, sym, ps->arena);
+     ps->future_refs[ps->num_future_refs++] = fr;
+     *A = pos_word(0);  // The A-field will be filled in later.
+     return true;
+@@ -521,7 +528,7 @@ bool parse_line(char *line, ParseState *ps, Mix *mix, ExtraParseInfo *extra) {
+     for (int i = 0; i < ps->num_future_refs; i++) {
+       FutureRef *fr = &ps->future_refs[i];
+       word val;
+-      if (!fr->is_literal && lookup_sym(fr->sym, &val, ps)) {
++      if (!fr->is_literal && lookup_sym(fr->sym.s, &val, ps)) {
+         fr->is_resolved = true;
+         word instr = mix->mem[fr->addr];
+         mix->mem[fr->addr] = build_instr(word_to_signmag(val), get_I(instr), get_F(instr), get_C(instr));
+@@ -538,10 +545,10 @@ bool parse_line(char *line, ParseState *ps, Mix *mix, ExtraParseInfo *extra) {
+         // (happens with the non-first instances of an undefined symbol).
+         if (!fr->is_literal) {
+           word tmp;
+-          if (lookup_sym(fr->sym, &tmp, ps))
++          if (lookup_sym(fr->sym.s, &tmp, ps))
+             addr = word_to_int(tmp);
+           else
+-            add_sym(fr->sym, pos_word(ps->star), ps);
++            add_sym(fr->sym.s, pos_word(ps->star), ps);
+         }
+         word instr = mix->mem[fr->addr];
+         mix->mem[fr->addr] = build_instr((signmag) {true, addr}, get_I(instr), get_F(instr), get_C(instr));
+diff --git a/mmmmmix/mmm.c b/mmmmmix/mmm.c
+index 2b5aa83..b9cc193 100644
+--- a/mmmmmix/mmm.c
++++ b/mmmmmix/mmm.c
+@@ -290,7 +290,7 @@ void display_instr_mixal(int i, MMM *mmm) {
+     putchar('\t');
+     display_instr_canonical(mmm->mix.mem[i]);
+   }
+-  else printf(mmm->source_lines[i]);
++  else printf("%s", mmm->source_lines[i].s);
+ }
+ 
+ // Display the instruction as a complete line, for debugging purposes.
+@@ -481,9 +481,8 @@ bool mix_step_wrapper(int trace_max, MMM *mmm) {
+ }
+ 
+ bool get_sym_value(char *s, MMM *mmm, word *w) {
+-  // Find the symbol in parse state
+-  for (int i = 0; i < ASSEMBLER_MAXSYMS; i++) {
+-    if (strncmp(s, mmm->ps.syms[i], 11) == 0) {
++  for (int i = 0; i < mmm->ps.num_syms; i++) {
++    if (!strcmp(mmm->ps.syms[i].s, s)) {
+       *w = mmm->ps.sym_vals[i];
+       return true;
+     }
+@@ -652,7 +651,7 @@ bool load_tape_file(char *filename, int n, MMM *mmm) {
+ 
+ bool load_mixal_file(char *filename, MMM *mmm) {
+   mix_init(&mmm->mix);
+-  parse_state_init(&mmm->ps);
++  parse_state_init(&mmm->ps, &mmm->arena);
+ 
+   FILE *fp;
+   if ((fp = fopen(filename, "r")) == NULL) {
+@@ -669,9 +668,11 @@ bool load_mixal_file(char *filename, MMM *mmm) {
+       return false;
+     }
+     if (extra.is_source_line) {
+-      strncpy(mmm->source_lines[mmm->ps.star-1], line, MMM_LINE_LEN);
+       int len = strlen(line);
+-      mmm->source_lines[mmm->ps.star-1][len-1] = '\0';
++      if (len > 0 && line[len-1] == '\n') len--;
++      Str *sl = &mmm->source_lines[mmm->ps.star-1];
++      sl->len = 0;
++      str_append_cstr_n(sl, line, len, &mmm->arena);
+       mmm->extra_parse_infos[mmm->ps.star-1] = extra;
+     }
+     if (extra.is_end) break;
+@@ -780,11 +781,15 @@ void quit_command(MMM *mmm) {
+ 
+ void mmm_init(MMM *mmm) {
+   // mmm->mix will be initialized in load_mixal_file()
+-  mmm->card_reader_file[0] = '\0';
++  mmm->arena = arena_new(MMM_ARENA_SIZE);
++  mmm->prev_line = str_new(&mmm->arena);
++  mmm->mixal_file = str_new(&mmm->arena);
++  mmm->card_reader_file = str_new(&mmm->arena);
++  mmm->card_punch_file = str_new(&mmm->arena);
+   for (int i = 0; i < 8; i++)
+-    mmm->tape_files[i][0] = '\0';
+-  mmm->prev_line[0] = '\0';
++    mmm->tape_files[i] = str_new(&mmm->arena);
+   for (int i = 0; i < 4000; i++) {
++    mmm->source_lines[i] = str_from_cstr("");
+     mmm->extra_parse_infos[i].is_source_line = false;
+     mmm->extra_parse_infos[i].is_con_or_alf = false;
+   }
+@@ -807,15 +812,15 @@ void mmm_init(MMM *mmm) {
+ }
+ 
+ bool reload_command(MMM *mmm) {
+-  if (!load_mixal_file(mmm->mixal_file, mmm)) {
+-    printf(RED("Could not reload %s"), mmm->mixal_file);
++  if (!load_mixal_file(mmm->mixal_file.s, mmm)) {
++    printf(RED("Could not reload %s"), mmm->mixal_file.s);
+     return false;
+   }
+-  load_card_reader_file(mmm->card_reader_file, mmm);
+-  load_card_punch_file(mmm->card_punch_file, mmm);
++  load_card_reader_file(mmm->card_reader_file.s, mmm);
++  load_card_punch_file(mmm->card_punch_file.s, mmm);
+   for (int i = 0; i < 8; i++) {
+-    if (*mmm->tape_files[i] != '\0')
+-      load_tape_file(mmm->tape_files[i], i, mmm);
++    if (mmm->tape_files[i].len != 0)
++      load_tape_file(mmm->tape_files[i].s, i, mmm);
+   }
+   return true;
+ }
+@@ -825,7 +830,8 @@ void load_card_reader_command(char *arg, MMM *mmm) {
+     printf(RED("Could not open card reader file %s\n"), arg);
+   else {
+     printf(GREEN("Loaded card reader file %s\n"), arg);
+-    strncpy(mmm->card_reader_file, arg, MMM_LINE_LEN);
++    mmm->card_reader_file.len = 0;
++    str_append_cstr(&mmm->card_reader_file, arg, &mmm->arena);
+   }
+ }
+ 
+@@ -834,7 +840,8 @@ void load_card_punch_command(char *arg, MMM *mmm) {
+     printf(RED("Could not open card punch file %s\n"), arg);
+   else {
+     printf(GREEN("Loaded card punch file %s\n"), arg);
+-    strncpy(mmm->card_punch_file, arg, MMM_LINE_LEN);
++    mmm->card_punch_file.len = 0;
++    str_append_cstr(&mmm->card_punch_file, arg, &mmm->arena);
+   }
+ }
+ 
+@@ -843,8 +850,10 @@ void load_tape_command(char *arg, MMM *mmm) {
+     printf(RED("You have to provide a tape number!\n"));
+   else {
+     int n = *arg - '0';
+-    if (load_tape_file(arg+1, n, mmm))
+-      strncpy(mmm->tape_files[n], arg+1, MMM_LINE_LEN);
++    if (load_tape_file(arg+1, n, mmm)) {
++      mmm->tape_files[n].len = 0;
++      str_append_cstr(&mmm->tape_files[n], arg+1, &mmm->arena);
++    }
+   }
+ }
+ 
+@@ -1074,8 +1083,8 @@ void dashboard_command(MMM *mmm) {
+ 		else buf += sprintf(buf, "...");
+ 	      }
+ 	      else {
+-		if (i == mmm->mix.next_PC) buf += sprintf(buf, GREEN("%s"), mmm->source_lines[i]);
+-		else buf += sprintf(buf, "%s", mmm->source_lines[i]);
++		if (i == mmm->mix.next_PC) buf += sprintf(buf, GREEN("%s"), mmm->source_lines[i].s);
++		else buf += sprintf(buf, "%s", mmm->source_lines[i].s);
+ 	      }
+ 	    }
+ 
+@@ -1106,7 +1115,7 @@ void dashboard_command(MMM *mmm) {
+ 
+       if (i != out_addr && i != in_addr && !mmm->mix.is_overwritten[i])
+ 	buf += sprintf(buf, "\033[37m");
+-      buf += sprintf(buf, "%s", mmm->source_lines[i]);
++      buf += sprintf(buf, "%s", mmm->source_lines[i].s);
+     }
+ 
+     // Flush buffer
+@@ -1181,11 +1190,11 @@ int main(int argc, char **argv) {
+   }
+   if (!load_mixal_file(argv[1], &mmm))
+     return 0;
+-  strncpy(mmm.mixal_file, argv[1], MMM_LINE_LEN);
++  str_append_cstr(&mmm.mixal_file, argv[1], &mmm.arena);
+   if (argc >= 3 && load_card_reader_file(argv[2], &mmm))
+-    strncpy(mmm.card_reader_file, argv[2], MMM_LINE_LEN);
++    str_append_cstr(&mmm.card_reader_file, argv[2], &mmm.arena);
+   if (argc >= 4 && load_card_punch_file(argv[3], &mmm))
+-    strncpy(mmm.card_punch_file, argv[3], MMM_LINE_LEN);
++    str_append_cstr(&mmm.card_punch_file, argv[3], &mmm.arena);
+ 
+   printf(CYAN("MIX Management Module, by wyan\n"));
+   printf("Type h for help\n");
+@@ -1199,8 +1208,9 @@ int main(int argc, char **argv) {
+     if (feof(stdin))
+       return 0;
+ 
+-    if (*line == '\0')     strncpy(line, mmm.prev_line, MMM_LINE_LEN); // Run previous command
+-    strncpy(mmm.prev_line, line, MMM_LINE_LEN);
++    if (*line == '\0')     strncpy(line, mmm.prev_line.s, MMM_LINE_LEN); // Run previous command
++    mmm.prev_line.len = 0;
++    str_append_cstr(&mmm.prev_line, line, &mmm.arena);
+     if (*line == 'l')      { if (!reload_command(&mmm)) return 1; }
+     else if (*line == '@') load_card_reader_command(line+1, &mmm);
+     else if (*line == '!') load_card_punch_command(line+1, &mmm);
+diff --git a/mmmmmix/mmm.h b/mmmmmix/mmm.h
+index 3fa62a5..484d055 100644
+--- a/mmmmmix/mmm.h
++++ b/mmmmmix/mmm.h
+@@ -4,21 +4,25 @@
+ #include <termios.h>
+ #include "assembler.h"
+ #include "emulator.h"
++#include "mylib/str.h"
++#include "mylib/arena.h"
+ 
+ #define MMM_LINE_LEN 128
+ #define MMM_DASHBOARD_BUFSIZE (1<<20)
++#define MMM_ARENA_SIZE (1<<22)
+ 
+ typedef struct {
+   Mix mix;
+   ParseState ps;
+-  char prev_line[MMM_LINE_LEN];
++  Arena arena;
++  Str prev_line;
+ 
+-  char mixal_file[MMM_LINE_LEN];
+-  char card_reader_file[MMM_LINE_LEN];
+-  char card_punch_file[MMM_LINE_LEN];
+-  char tape_files[8][MMM_LINE_LEN];
++  Str mixal_file;
++  Str card_reader_file;
++  Str card_punch_file;
++  Str tape_files[8];
+ 
+-  char source_lines[4000][MMM_LINE_LEN];
++  Str source_lines[4000];
+   ExtraParseInfo extra_parse_infos[4000];
+ 
+   bool should_trace;
+diff --git a/mmmmmix/test.c b/mmmmmix/test.c
+index f1af239..d9d10a6 100644
+--- a/mmmmmix/test.c
++++ b/mmmmmix/test.c
+@@ -437,7 +437,8 @@ void test_emulator() {
+ void test_assembler() {
+   ParseState ps;
+   Mix mix;
+-  parse_state_init(&ps);
++  Arena arena = arena_new(1<<20);
++  parse_state_init(&ps, &arena);
+   mix_init(&mix);
+ 
+   // TEST: parse_sym
+@@ -489,7 +490,7 @@ void test_assembler() {
+   assert(!parse_atomic(&line, &w, &ps));
+ 
+   ps.num_syms = 1;
+-  strcpy(ps.syms[0], "20BY20");
++  ps.syms[0] = str_from_cstr("20BY20");
+   ps.sym_vals[0] = pos_word(1234);
+   line = "20BY20\n";
+   assert(parse_atomic(&line, &w, &ps));
+@@ -591,17 +592,17 @@ void test_assembler() {
+   // TEST: parse_line
+   fprintf(stderr, "TESTING: parse_line...\n");
+   ExtraParseInfo extraparseinfo;
+-  parse_state_init(&ps);
++  parse_state_init(&ps, &arena);
+   line = "START\tNOP\n";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   assert(ps.num_syms == 1);
+-  assert(!strcmp(ps.syms[0], "START"));
++  assert(!strcmp(ps.syms[0].s, "START"));
+   assert(word_eq(ps.sym_vals[0], pos_word(ps.star-1)));
+ 
+   line = "TEN\tEQU\t10\n";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   assert(ps.num_syms == 2);
+-  assert(!strcmp(ps.syms[1], "TEN"));
++  assert(!strcmp(ps.syms[1].s, "TEN"));
+   assert(word_eq(ps.sym_vals[1], pos_word(10)));
+ 
+   line = "\tCON\t1337\n";
+@@ -633,14 +634,14 @@ void test_assembler() {
+ 
+   // TEST: future references
+   fprintf(stderr, "TESTING: future references...\n");
+-  parse_state_init(&ps);
++  parse_state_init(&ps, &arena);
+   line = "\tJMP\tFUTURE\n";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   assert(ps.num_future_refs == 1);
+   assert(!ps.future_refs[0].is_resolved);
+   assert(ps.future_refs[0].addr == 0);
+   assert(!ps.future_refs[0].is_literal);
+-  assert(!strcmp(ps.future_refs[0].sym, "FUTURE"));
++  assert(!strcmp(ps.future_refs[0].sym.s, "FUTURE"));
+   line = "FUTURE\tNOP\n";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   line = "\tJMP\tUNDEFINED\n";
+@@ -666,7 +667,7 @@ void test_assembler() {
+ 
+   // TEST: local symbols
+   fprintf(stderr, "TESTING: local symbols...\n");
+-  parse_state_init(&ps);
++  parse_state_init(&ps, &arena);
+   line = "1H\tNOP\n";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   assert(ps.local_sym_counts[1] == 1);
+@@ -693,7 +694,7 @@ void test_assembler() {
+ 
+   // TEST: multiple instances of the same undefined symbol
+   fprintf(stderr, "TESTING: multiple instances of undefined symbol...\n");
+-  parse_state_init(&ps);
++  parse_state_init(&ps, &arena);
+   line = "\tJMP\tUNDEFINED\n";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   line = "\tJMP\tUNDEFINED\n";
+@@ -705,7 +706,7 @@ void test_assembler() {
+ 
+   // TEST: comment, but no A/I/F field
+   fprintf(stderr, "TESTING: comment, but no A/I/F field...\n");
+-  parse_state_init(&ps);
++  parse_state_init(&ps, &arena);
+   line = "\tHLT\t\thalts the program";
+   assert(parse_line(line, &ps, &mix, &extraparseinfo));
+   assert(signmag_eq(get_A(mix.mem[0]), (signmag) {true, 0}));
+@@ -718,13 +719,14 @@ void test_assembler() {
+ 
+ static bool load_mixal_file(char *filename, Mix *mix) {
+   ParseState ps;
++  Arena arena = arena_new(1<<20);
+   FILE *fp;
+   int line_num = 0;
+   char line[MMM_LINE_LEN];
+   ExtraParseInfo extra;
+ 
+   mix_init(mix);
+-  parse_state_init(&ps);
++  parse_state_init(&ps, &arena);
+ 
+   if ((fp = fopen(filename, "r")) == NULL) return false;
