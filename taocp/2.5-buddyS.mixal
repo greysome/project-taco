@@ -1,0 +1,55 @@
+* 2.5-28: implement Algorithm S (buddy system liberation)
+* Uses the XOR instruction (in mix-xor branch)
+*
+* Input: rI1=L, rI2=k
+* Registers used: rI3=LOC(P), rI4 and rI5 are temp
+TAG	EQU	0:0
+KVAL	EQU	1:1
+TKVAL	EQU	0:1
+LINKF	EQU	2:3
+LINKB	EQU	4:5
+FREE	STJ	9F
+S1	CMP2	=11=
+	JE	S3		k = m?
+	ENTA	0,1
+	XOR	POWERS,2	rA <- P.
+	STA	*+1
+	ENT3	*		rI3 <- P.
+	LD4	0,3(TAG)	rI4 <- TAG(P).
+	J4P	S3		TAG(P) = 0?
+	LD4	0,3(KVAL)
+	CMP2	0,4		KVAL(P) != k?
+	JNE	S3
+S2	LD4	0,3(LINKF)	rI4 <- LINKF(P).
+	LD5	0,3(LINKB)	rI5 <- LINKB(P).
+	ST4	0,5(LINKF)	LINKF(LINKB(P)) <- LINKF(P).
+	ST5	0,4(LINKB)	LINKB(LINKF(P)) <- LINKB(P).
+	INC2	1		k <- k+1.
+	DEC3	0,1
+	J3NN	1F		P < L?
+	INC1	0,3		L <- P.
+1H	JMP	S1
+S3	ENT4	-1
+	ST4	0,1(TAG)	TAG(L) <- 1.
+	LD4	AVAILF,2	AVAILF[k]
+	ST4	0,3		  -> P.
+	ST3	0,1(LINKF)	LINKF(L) <- P.
+	ST1	0,3(LINKB)	LINKB(P) <- L.
+	ST2	0,1(KVAL)	KVAL(L) <- k.
+	ENT4	AVAILF,2	LOC(AVAILF[k]))
+	ST4	0,1(LINKB)	  -> LINKB(L).
+	ST1	AVAILF,2	AVAILF[k] <- L.
+9H	JMP	*
+POWERS	CON	1
+	CON	2
+	CON	4
+	CON	8
+	CON	16
+	CON	32
+	CON	64
+	CON	128
+	CON	256
+	CON	512
+	CON	1024
+	CON	2048
+	END	FREE

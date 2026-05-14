@@ -1,0 +1,91 @@
+* 2.2.3-23/24: implement an algorithm to perform subroutine allocation
+*
+* This is an original implementation following the solution in 2.2.3-23,
+* with a small change to phase 1.
+*
+* Phase 1:
+* A0. If N=0, go to phase 2.
+* A1. Set P<-X[N], N<-N-1, B[P]<-B[P]+2.
+* A2. If B[P]=+-1, goto A0. Else P<-P+1 and go to next step.
+* A3. If B[SUB1(P)]<=0, set N<-N+1, X[N]<-SUB1(P).
+*     If SUB2(P)!=0 and B[SUB2(P)]<=0, then set N<-N+1, X[N]<-SUB2(P).
+*     Goto A2.
+*
+* Phase 2:
+* B0. Set P<-FIRST.
+* B1. If P<-NULL, then set N<-N+1, BASE(X[N])<-MLOC, SUB(X[N])<-0, and we are done.
+* B2. If B[P]>0, then set N<-N+1, BASE(X[N])<-MLOC, SUB(X[N])<-P,
+*     MLOC<-MLOC+SPACE(P).
+* B3. Set P<-LINK(P) and goto B1.
+B	EQU	0:1
+SPACE	EQU	2:3
+SUB1	EQU	2:3
+BASE	EQU	2:3
+LINK	EQU	4:5
+SUB2	EQU	4:5
+SUB	EQU	4:5
+* SAMPLE DATA
+	ORIG	1000
+	CON	0(B),20(SPACE),1005(LINK)
+	CON	-1(B),1002(SPACE),0(LINK)
+	CON	-1(B),30(SPACE),1010(LINK)
+	CON	0(B),200(SPACE),1007(LINK)
+	CON	-1(B),1000(SPACE),1006(LINK)
+	CON	-1(B),100(SPACE),1003(LINK)
+	CON	-1(B),60(SPACE),1000(LINK)
+	CON	0(B),200(SPACE),0(LINK)
+	CON	0(B),1005(SPACE),1002(LINK)
+	CON	-1(B),1006(SPACE),0(LINK)
+	CON	-1(B),20(SPACE),1006(LINK)
+FIRST	CON	1002
+N	CON	2
+MLOC	CON	2400
+X	CON	0
+	CON	1003
+	CON	1010
+	ORIG	2000
+* rI1=N, rI2=P, rI3=B[P], rI4=SUB1(P),SUB2(P), rI5=B[SUB1(P)],B[SUB2(P)]
+PHASE1	LD1	N
+A0	J1Z	PHASE2		N = 0?
+A1	LD2	X,1		P <- X[N].
+	DEC1	1		N <- N-1.
+	LD3	0,2(B)		B[P] <- B[P]+2.
+	INC3	2
+	ST3	0,2(B)
+A2	LD3	0,2(B)
+	CMP3	=1=		B[P] = +-1?
+	JE	A0
+	CMP3	=-1=
+	JE	A0
+	INC2	1		P <- P+1.
+A3	LD4	0,2(SUB1)
+	LD5	0,4(B)		B[SUB1(P)] <= 0?
+	J5P	1F
+	INC1	1		N <- N+1.
+	ST4	X,1		X[N] <- SUB1(P).
+1H	LD4	0,2(SUB2)
+	J4Z	1F		SUB2(P) = 0?
+	LD5	0,4(B)
+	J5P	1F		B[SUB2(P)] <= 0?
+	INC1	1		N <- N+1.
+	ST4	X,1		X[N] <- SUB2(P).
+1H	JMP	A2
+* rI1=P, rI2=B(P), rI3=SPACE(P), rI4=N, rI5=MLOC
+PHASE2	ENT4	0,1
+	LD1	FIRST
+	LD5	MLOC
+B1	J1Z	DONE		P = NULL?
+B2	LD2	0,1(B)
+	J2NP	B3
+	INC4	1		N <- N + 1.
+	ST5	X,4(BASE)	BASE(X[N]) <- MLOC.
+	ST1	X,4(SUB)	SUB(X[N]) <- P.
+	LD3	0,1(SPACE)
+	INC5	0,3		MLOC <- MLOC + SPACE(P).
+B3	LD1	0,1(LINK)	P <- LINK(P).
+	JMP	B1
+DONE	INC4	1
+	ST5	X,4(BASE)	BASE(X[N]) <- MLOC.
+	STZ	X,4(SUB)	SUB(X[N]) <- 0.
+	HLT
+	END	PHASE1

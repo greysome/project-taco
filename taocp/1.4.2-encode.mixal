@@ -1,0 +1,91 @@
+* 1.4.2-7: reverse the process of decode.mixal
+*
+* INPUT SUBROUTINE
+* Registers used:
+* rA = current word, rI1 = index into input card,
+* rI2 = current field number in word, rI3 = letter count
+* rI4 = output character (to pass to OUT subroutine)
+PERIOD	ALF	.   .
+READER	EQU	16
+PREV	ALF	     		Initially a sentinel value.
+INPUT	ORIG	*+16
+IN1	J1N	I2
+	IN	INPUT(READER)	Load new card?
+	JBUS	*(READER)
+	ENT1	-16
+I2	ENT2	2
+	LDA	INPUT+16,1	Get next word.
+I3	CMPA	PREV(1:1)
+	JNE	2F		New letter encountered?
+	INC3	1
+	JMP	I4
+2H	DEC3	1
+	J3NP	1F		Output count?
+	ENT4	30,3
+	JMP	OUT
+1H	LD4	PREV(1:1)		Output letter.
+	JMP	OUT
+	CMPA	PERIOD(1:1)	Is current letter a period?
+	JNE	2F
+	ENT4	40
+	JMP	OUT		If yes, call OUT one last time.
+2H	SRC	4
+	STA	PREV(1:1)		Update previous letter.
+	SLC	4
+	ENT3	1		Reset letter count.
+I4	J2P	1F		Continue with current word?
+	INC1	1		Advance to next word.
+	JMP	IN1
+1H	DEC2	1
+	SLA	1		Next letter in word.
+	JMP	I3
+* OUTPUT SUBROUTINE
+* Input register: rI4 = output character
+* Registers used: rI5 = index into output card, rX = temp
+PUNCH	EQU	17
+WORD	ALF	     
+OUTPUT	ORIG	*+16
+OUT1	ENT5	-16
+	STZ	OUTPUT+16,5	Clear output bffer
+	INC5	1
+	J5N	*-2
+	ENT5	-16
+1H	STZ	WORD
+	JMP	IN		Read input.
+	J4Z	*-1		The very first call to OUT is a space; ignore that.
+	ST4	WORD(1:1)
+	CMP4	PERIOD(5:5)
+	JE	DONE
+2H	JMP	IN		Read input.
+	ST4	WORD(2:2)
+	CMP4	PERIOD(5:5)
+	JE	DONE
+	JMP	IN		Read input.
+	ST4	WORD(3:3)
+	CMP4	PERIOD(5:5)
+	JE	DONE
+	JMP	IN		Read input.
+	ST4	WORD(4:4)
+	CMP4	PERIOD(5:5)
+	JE	DONE
+	JMP	IN		Read input.
+	ST4	WORD(5:5)
+	CMP4	PERIOD(5:5)
+	JE	DONE
+DONE	LDX	WORD
+	STX	OUTPUT+16,5	Add word to output buffer.
+	JE	*+3		Encountered a period?
+	INC5	1		Advance to next word.
+	J5N	1B		Still in same output card?
+	OUT	OUTPUT(PUNCH)
+	JBUS	*(PUNCH)
+	JNE	OUT1		Encountered a period?
+	HLT
+* INITIALIZATION AND LINKAGE
+START	ENT3	0
+	JMP	OUT1
+OUT	STJ	INX
+OUTX	JMP	OUT1
+IN	STJ	OUTX
+INX	JMP	IN1
+	END	START

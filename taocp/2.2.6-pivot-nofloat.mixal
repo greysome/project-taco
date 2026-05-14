@@ -1,0 +1,165 @@
+* A version of pivotstep.mixal that replaces the unsupported
+* floating-point operations with dummy operations, for testing
+* purposes.
+*
+* PIVOTSTEP
+* Input: rI5=PIVOT. It is assumed that the BASECOL/BASEROW/PTR tables exist.
+* Registers: rI1=I,X, rI2=J, rI3=P0, rI4=Q0, rI5=P1, rI6=P
+ROW	EQU	0:3
+UP	EQU	4:5
+COL	EQU	0:3
+LEFT	EQU	4:5
+I0	CON	0
+J0	CON	0
+ALPHA	CON	0
+PIVOTSTEP	STJ	9F
+* rI5,rI6 are used as temp registers in the initialization step
+S1 	LD6	0,5(ROW)	ROW(PIVOT)
+	ST6	I0		  -> I0.
+	LD3	BASEROW,6	P0 <- LOC(BASEROW[I0]).
+	LD6	1,5(COL)	COL(PIVOT)
+	ST6	J0		  -> J0.
+	LD4	BASECOL,6	Q0 <- LOC(BASECOL[J0]).
+	LDA	2,5		VAL(PIVOT)
+*	ENTA	=1.0=
+	STA	ALPHA	  	  -> ALPHA.
+	ENTA	1		1
+	STA	2,5		  -> VAL(PIVOT).
+S2	LD3	1,3(LEFT)	P0 <- LEFT(P0).
+	LD2	1,3(COL)	J <- COL(P0).
+	J2N	S3		J < 0?
+	LDA	BASECOL,2	LOC(BASECOL[J])
+	STA	PTR,2		  -> PTR[J].
+	LDA	2,3		VAL(P0)
+*	FDIV	ALPHA
+	SUB	ALPHA		  - ALPHA
+	STA	2,3		  -> VAL(P0).
+	JMP	S2
+S3	LD4	0,4(UP)		Q0 <- UP(Q0).
+	LD1	0,4(ROW)	I <- ROW(Q0).
+9H	J1N	*		I < 0? (then terminate)
+	CMP1	I0		I = I0? (then repeat S3)
+	JE	S3
+	LD6	BASEROW,1	P <- LOC(BASEROW[I]).
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+S4	LD3	1,3(LEFT)	P0 <- LEFT(P0).
+	LD2	1,3(COL)	J <- COL(P0).
+	J2NN	1F		J < 0?
+	LDAN	2,4		- VAL(Q0)
+*	FDIV	ALPHA
+	STA	2,4		  -> VAL(Q0).
+	JMP	S3
+1H	CMP2	J0		J = J0? (then repeat S4)
+	JE	S4
+S5	LDA	1,5(COL)	Decrement COL(P1)
+	DECA	0,2		  by J.
+	JAZ	S7		If we matched pivot row's column, then pivot.
+	JANP	S6		If we overshot, then insert.
+	ENT6	0,5		Otherwise, we advance our column. P <- P1.
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+	JMP	S5
+S6	LDX	PTR,2		rX <- PTR[J].
+	STX	2F(0:2)
+	STX	*+1(0:2)
+	LDX	*(UP)		rX <- UP(PTR[J])
+	STX	*+1(0:2)
+	LDA	*(ROW)		rA <- ROW(UP(PTR[J])).
+	DECA	0,1
+	JANP	*+3		ROW(UP(PTR[J])) > I?
+0H	STX	PTR,2		PTR[J] <- UP(PTR[J]).
+	JMP	S6
+	ST1	0F(0:2)		Temporary make rI1 point to new node X <= AVAIL.
+	ST1	1F(0:2)
+	LD1	AVAIL
+	LDA	0,1(UP)		UP(AVAIL) points to the next node in the allocation list.
+	STA	AVAIL
+*	ENTA	=0.0=
+	ENTA	0		0
+	STA	2,1		  -> VAL(X).
+0H	ENTA	*
+	STA	0,1(ROW)	ROW(X) <- I.
+	ST2	1,1(COL)	COL(X) <- J.
+	ST5	1,1(LEFT)	LEFT(X) <- P1.
+	STX	0,1(UP)		UP(X) <- UP(PTR[J]).
+	ST1	1,6(LEFT)	LEFT(P) <- X.
+2H	ST1	*(UP)		UP(PTR[J]) <- X.
+	ENT5	0,1		P1 <- X.
+1H	ENT1	*		Restore I1.
+S7	LDAN	2,3		- VAL(P0)
+*	FMUL	2,4
+	MUL	2,4
+	SLAX	5
+*	FADD	2,5
+	ADD	2,5
+	STA	2,5		  -> VAL(P1).
+	JAZ	S8		VAL(P1) = 0?
+	ST5	PTR,2		PTR[J] <- P1.
+	ENT6	0,5		P <- P1.
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+	JMP	S4
+S8	LDA	PTR,2		rA <- PTR[J].
+	STA	*+1(0:2)
+	LDA	*(UP)		rA <- UP(PTR[J]).
+	STA	0F(0:2)
+	DECA	0,5		rA <- rA - P1.
+	JAZ	*+4		UP(PTR[J]) = P1?
+0H	ENTA	*		UP(PTR[J])
+	STA	PTR,2		  -> PTR[J].
+	JMP	S8
+	LDX	0,5(UP)		UP(P1)
+	LDA	PTR,2
+	STA	*+1(0:2)
+	STX	*(UP)		  -> UP(PTR[J]).
+	LDA	1,5(LEFT)	LEFT(P1)
+	STA	1,6(LEFT)	  -> LEFT(P).
+	LDA	AVAIL
+	STA	0,5(UP)
+	ST5	AVAIL		AVAIL <= P1.
+	LD5	1,6(LEFT)	P1 <- LEFT(P).
+	JMP	S4
+* TEST RUN
+TEST	ENT5	M21
+	JMP	PIVOTSTEP
+	HLT
+* TEST DATA
+	ORIG	1000
+BASEROW	CON	1007
+	CON	1008
+	CON	1019
+	CON	1010
+BASECOL	CON	1012
+	CON	1013
+	CON	1014
+RHEAD1	CON	1015
+RHEAD2	CON	-1(COL),1016(LEFT)
+RHEAD3	CON	-1(COL),1025(LEFT)
+RHEAD4	CON	-1(COL),RHEAD3(LEFT)
+	CON	-1(COL),1031(LEFT)
+CHEAD1	CON	-1(ROW),1022(UP)
+CHEAD2	CON	-1(ROW),CHEAD2(UP)
+CHEAD3	CON	-1(ROW),1028(UP)
+CHEAD4	CON	-1(ROW),1031(UP)
+M11	CON	0(ROW),CHEAD1(UP)
+	CON	0(COL),RHEAD1(LEFT)
+	CON	50
+M21	CON	1(ROW),M11(UP)
+	CON	0(COL),RHEAD2(LEFT)
+	CON	10
+M41	CON	3(ROW),M21(UP)
+	CON	0(COL),RHEAD4(LEFT)
+	CON	-30
+M23	CON	1(ROW),CHEAD3(UP)
+	CON	2(COL),M21(LEFT)
+	CON	20
+M43	CON	3(ROW),M23(UP)
+	CON	2(COL),M41(LEFT)
+	CON	-300
+M44	CON	3(ROW),CHEAD4(UP)
+	CON	3(COL),M43(LEFT)
+	CON	5
+PTR	ORIG	*+4
+AVAIL	CON	*+1
+	CON	0
+	CON	0
+	CON	0
+	END	TEST

@@ -1,0 +1,110 @@
+The same introductory remarks as taocp-ch1-solutions.txt apply.
+
+4.2.1-5 ---------------------
+
+Consider fu and fv after v has been shifted right the appropriate
+amount of places:
+
+fu = +- . a1 ... ap 0      0      0      0      ...
+fv = +- . b1 ... bp b(p+1) b(p+2) b(p+3) b(p+4) ...
+
+(There are at most p nonzero digits in fv, all appearing in a
+contiguous sequence of length p.) From this setup, the rest of
+Algorithm A consists of adding the two fractions, shifting and then
+rounding off to p decimal places. Equivalently, we can think of it as
+adding, then rounding off to p+k decimal places, then left shifting k
+places --- k is the position of the leading nonzero digit of the sum.
+
+Now the problem becomes: if we replaced fv with gv := b^(-p-2)Fv, i.e.
+
+gv = +- . b1 ... bp b(p+1) c(p+2) c(p+3) c(p+4) ... ,
+
+where the ci's satisfy the ~ relation, then is the final
+add-round-shift amount the same? (Note we have not ruled out the
+possibility that k != k' := position of the leading nonzero digit of
+fu+gv.)
+
+This question will be answered via cases on k.
+
+Case 1. k < -1
+--------------
+Impossible! The sum can't possibly be that large.
+
+
+Case 2. k = -1
+--------------
+The signs of both operands must be the same in order to get such a
+large magnitude. Therefore, no borrowing happens with the digits
+beyond the pth place, so fu+fv and fu+gv are equal up to the (p-1)th
+place, so k'=-1 as well. Furthermore, the rounding depends only on the
+digit (ap+bp) mod 10, so replacing fv with gv is fine.
+
+
+Case 3. k = 0
+-------------
+Subcase 1. Same signs
+---------------------
+Same argument as case 2. This time, rounding depends only on the digit
+b(p+1).
+
+Subcase 2. Different signs
+--------------------------
+The only way for the 1st to pth places of fu+gv to differ somewhere is
+if the signs are different and the (p+1)th place borrows from the pth
+place in one of the sums but not the other. If (without loss of
+generality) the borrowing happens in fu+gv, then (c(p+2) c(p+3)
+...) must be nonzero. But by ~, this implies (b(p+2) b(p+3) ...) != 0
+so borrowing also occurs in fu+fv -- contradiction! So the first p
+places are the same.
+
+Rounding to p places only depends on b(p+1) (because either the
+(p+2)th place borrows in both sums, or it borrows in none), so
+replacing fv with gv is fine.
+
+
+Case 4. k = 1
+-------------
+Subcase 1. Same signs
+---------------------
+Same argument as case 2. This time, rounding depends only on the digits
+b(p+2) or c(p+2), but ~ ensures that
+
+0 <= b(p+2) < B/2  <=>  0 <= c(p+2) < B/2.
+
+Subcase 2. Different signs
+--------------------------
+Same argument as case 3 subcase 2 to show that the first p+1 places of
+fu+fv and fu+gv are the same.
+
+Rounding to (p+1) places depends on (b(p+2) b(p+3) ...) and (c(p+2)
+c(p+3) ...). But it can be verified that the ~ relation guarantees
+the rounding behaviour to be the same.
+
+Note that the need to handle the cases (same sign, different sign) is
+why the definition of ~ looks so complicated. Intuitively, it cannot
+"prefer" one of the intervals [0,B/2], [B/2,B].
+
+
+Case 5. k > 1
+-------------
+fu is normalised so it is at least .100.... For fu+fv to have such
+a small magnitude, the signs must be different and the leading nonzero
+digit of fv has to be at the 1st or 2nd place.
+
+(To easily see this, we can try making fu as small as possible and fv
+as large as possible when the leading digit is at the 3rd place. In
+base 10, this looks like
+.10000... - .00999... = .09000....
+The sum has k=1.)
+
+Since fv has at most p contiguous nonzero digits and b1 or b2 is
+nonzero, this implies (b(p+2) b(p+3) ...) = 0, so by ~ we have
+(c(p+2) c(p+3) ...) = 0, which means fv=gv.
+
+
+
+We are done with the cases, but the proof is not 100% complete,
+because after rounding there might be additional shifts (e.g. if
+.99... rounds up to 1.00...). Nevertheless, the final result depends
+only on the (p+k) places after the rounding, which we have shown to be
+the same with fv or gv.
