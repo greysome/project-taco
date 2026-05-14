@@ -4,7 +4,7 @@ This is a MIX emulator I wrote to follow along the code examples in Knuth's _The
 
 ## Installation
 
-There are two executables: `mmm` the MIX Management Module and `test`, which just runs a series of asserts to sanity-check that the emulator and assembler work as intended. They can be built via `make` and `make test` respectively. The only dependency is the C standard library, and I compile with C17 (older versions of C will probably work too).
+There are two executables: `mmm` the MIX Management Module and `test`, which just runs a series of asserts to sanity-check that the emulator and assembler work as intended. They can be built via `make` and `make test` respectively. The only dependency is the C standard library, and I compile with C23 and POSIX_SOURCE=200809L.
 
 ## Basic usage
 
